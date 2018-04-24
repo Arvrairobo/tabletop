@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<robot name="prsg2_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="degree" value="${pi / 180}" />
+  <xacro:property name="inch" value="0.0254" />
+
+  <xacro:property name="table_width" value="${30 * inch}" />
+  <xacro:property name="table_length" value="${72 * inch}" />
+  <xacro:property name="table_thickness" value="${0.5 * inch}" />
+
+  <xacro:macro name="material_color" params="r g b a:=1.0">
+    <material name="color_${r}_${g}_${b}_{$a}">
+      <color rgba="${r} ${g} ${b} ${a}" />
+    </material>
+  </xacro:macro>
+
+  <!-- The table, as a cube -->
+  <link name="table">
+    <visual>
+      <origin xyz="${table_length / 2} 0 ${-table_thickness}" rpy="0 0 0" />
+      <geometry>
+        <box size="${table_length} ${table_width} ${table_thickness}" />
+      </geometry>
+      <xacro:material_color r="0.37" g="0.25" b="0.10" a="0.7" />
+    </visual>
+  </link>
+
+</robot>

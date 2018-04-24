@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<robot name="prsg2_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="degree" value="${pi / 180}" />
+  <xacro:property name="inch" value="0.0254" />
+
+  <xacro:property name="block_side" value="0.075" />
+  <xacro:property name="fiducial_size" value="0.030" />
+  <xacro:property name="fiducial_thickness" value="0.001" />
+  <xacro:property name="fiducial_height"
+                  value="${block_side - fiducial_size/2}" />
+
+  <xacro:property name="goal_width" value="${9 * inch}" />
+  <xacro:property name="goal_height" value="${6 * inch}" />
+  <xacro:property name="goal_depth" value="${3.5 * inch}" />
+  <xacro:property name="goal_thickness" value="3" />
+
+  <xacro:macro name="material_color" params="r g b a:=1.0">
+    <material name="color_${r}_${g}_${b}_{$a}">
+      <color rgba="${r} ${g} ${b} ${a}" />
+    </material>
+  </xacro:macro>
+
+  <!-- The block, as a cube -->
+  <link name="block_shape">
+    <visual>
+      <origin xyz="0 0 ${block_side / 2}" rpy="0 0 0" />
+      <geometry>
+        <box size="${block_side} ${block_side} ${block_side}" />
+      </geometry>
+      <xacro:material_color r="0.95" g="0.45" b="0.03" a="0.7" />
+    </visual>
+  </link>
+
+  <!-- The fiducial position -->
+  <link name="block">
+    <visual>
+      <origin xyz="${-fiducial_thickness/2} 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="${fiducial_thickness} ${fiducial_size} ${fiducial_size}" />
+      </geometry>
+      <xacro:material_color r="1" g="1" b="1" a="1.0" />
+    </visual>
+  </link>
+  <joint name="block_shape_to_block" type="fixed">
+    <parent link="block_shape" />
+    <child link="block" />
+    <origin xyz="${block_side/2} 0 ${block_side - fiducial_size/2}" />
+  </joint>
+
+</robot>
