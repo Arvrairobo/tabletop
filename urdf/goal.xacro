@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<robot name="prsg2_robot" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:property name="degree" value="${pi / 180}" />
+  <xacro:property name="inch" value="0.0254" />
+
+  <xacro:property name="goal_width" value="${9 * inch}" />
+  <xacro:property name="goal_height" value="${6 * inch}" />
+  <xacro:property name="goal_depth" value="${3.5 * inch}" />
+  <xacro:property name="goal_thickness" value="0.003" />
+  
+  <xacro:property name="block_side" value="0.075" />
+  <xacro:property name="fiducial_size" value="0.030" />
+  <xacro:property name="fiducial_thickness" value="0.001" />
+  <xacro:property name="fiducial_height"
+                  value="${block_side - fiducial_size/2}" />
+
+  <xacro:macro name="material_color" params="r g b a:=1.0">
+    <material name="color_${r}_${g}_${b}_{$a}">
+      <color rgba="${r} ${g} ${b} ${a}" />
+    </material>
+  </xacro:macro>
+
+  <!-- The goal floor -->
+  <link name="goal_floor">
+    <visual>
+      <origin xyz="${goal_depth / 2} 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="${goal_depth} ${goal_width} ${goal_thickness}" />
+      </geometry>
+      <xacro:material_color r="0.75" g="0.61" b="0.48" a="0.7" />
+    </visual>
+  </link>
+
+  <!-- The goal back -->
+  <link name="goal_back">
+    <visual>
+      <origin xyz="0 0 ${goal_height / 2}" rpy="0 0 0" />
+      <geometry>
+        <box size="${goal_thickness} ${goal_width} ${goal_height}" />
+      </geometry>
+      <xacro:material_color r="0.75" g="0.61" b="0.48" a="0.7" />
+    </visual>
+  </link>
+  <joint name="goal_floor_to_goal_back" type="fixed">
+    <parent link="goal_floor" />
+    <child link="goal_back" />
+    <origin xyz="${goal_depth} 0 0" />
+  </joint>
+    
+  <!-- The goal fiducial -->
+  <link name="goal">
+    <visual>
+      <origin xyz="${-fiducial_thickness} 0 0" rpy="0 0 0" />
+      <geometry>
+        <box size="${fiducial_thickness} ${fiducial_size} ${fiducial_size}" />
+      </geometry>
+      <xacro:material_color r="1.0" g="1.0" b="1.0" a="1.0" />
+    </visual>
+  </link>
+  <joint name="goal_back_to_goal" type="fixed">
+    <parent link="goal_back" />
+    <child link="goal" />
+    <origin xyz="0 0 ${fiducial_height}" rpy="0 0 ${pi}" />
+  </joint>
+    
+</robot>
