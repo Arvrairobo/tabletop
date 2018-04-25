@@ -1,4 +1,7 @@
 <launch>
+
+  <arg name="shutter_speed" default="50000" />
+
   <node type="raspicam_node" pkg="raspicam_node" name="raspicam_node" output="screen">
 
     <param name="camera_name" value="raspicamv1" />
@@ -9,7 +12,7 @@
     <param name="framerate" value="10"/>
     <param name="brightness" value="50" />
     <param name="ISO" value="800" />
-    <param name="shutterSpeed" value="50000" />
+    <param name="shutterSpeed" value="$(arg shutter_speed)" />
 
     <param name="camera_frame_id" value="raspicam"/>
 

@@ -1,15 +1,25 @@
 <?xml version="1.0"?>
 <launch>
 
+  <arg name="shutter_speed" default="50000" />
+
   <include file="$(find prsg2_robot)/launch/prsg2_controller.launch" />
-  <include file="$(find tabletop)/launch/camera.launch" />
+  <include file="$(find tabletop)/launch/camera.launch">
+    <arg name="shutter_speed" value="$(arg shutter_speed)" />
+  </include>
+
+  <!-- Filter images from 10 Hz to 1 Hz for aruco_detect. -->
+  <node name="drop" pkg="topic_tools" type="drop"
+        args="/raspicam_node/image/compressed 9 10 /image/compressed" />
 
   <node name="republish" pkg="image_transport" type="republish"
-        args="compressed in:=/raspicam_node/image raw out:=/camera" />
+        args="compressed in:=/image raw out:=/camera" />
 
   <node name="aruco_detect" pkg="aruco_detect" type="aruco_detect">
-    <param name="~dictionary" value="0" />
-    <param name="~fiducial_len" value=".0508" />
+    <!-- Using DICT_5X5_50 -->
+    <param name="~dictionary" value="4" />
+    <!-- Actual fiducials are 30mm. Adjust value to calibrate at 15cm. -->
+    <param name="~fiducial_len" value=".0265" />
     <remap from="/camera_info" to="/raspicam_node/camera_info" />
   </node>
 
