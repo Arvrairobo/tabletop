@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node name="fiducial_transform_publisher" pkg="tabletop"
+        type="fiducial_transform_publisher" output="screen">
+    <rosparam>
+      camera_frame: camera_frame
+      fiducials:
+      - id: 0
+        frame: block
+      - id: 1
+        frame: block_top
+      - id: 9
+        frame: goal
+    </rosparam>
+  </node>
+
+  <!-- The relationship between the block fiducial, on the front of the
+       block, and the top fiducial. For both, we let the X axis point
+       out from the front of the block. -->
+  <node name="block_top_transform" pkg="tf" type="static_transform_publisher"
+        args="-0.0375 0 0.015 0 0 0 block block_top 100" />
+
+</launch>
