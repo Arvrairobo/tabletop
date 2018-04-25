@@ -50,13 +50,6 @@
   <node name="block_transform" pkg="tf" type="static_transform_publisher"
         args="$(arg block_position) 0 $(arg block_heading) 0 0 odom block_shape 100" />
 
-  <!-- The relationship between the block fiducial, on the front of the
-       block, and the top fiducial. For both, we let the X axis point
-       out from the front of the block. -->
-  <node name="mock_block_top_transform" pkg="tf"
-        type="static_transform_publisher"
-        args="-0.0375 0 0.015 0 0 0 mock_block mock_block_top 100" />
-
   <!-- Publish the goal state. -->
   <node name="goal_state_publisher" pkg="robot_state_publisher"
         type="state_publisher">
