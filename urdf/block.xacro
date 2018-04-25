@@ -33,7 +33,7 @@
   </link>
 
   <!-- The fiducial position -->
-  <link name="block">
+  <link name="mock_block">
     <visual>
       <origin xyz="${-fiducial_thickness/2} 0 0" rpy="0 0 0" />
       <geometry>
@@ -44,7 +44,7 @@
   </link>
   <joint name="block_shape_to_block" type="fixed">
     <parent link="block_shape" />
-    <child link="block" />
+    <child link="mock_block" />
     <origin xyz="${block_side/2} 0 ${block_side - fiducial_size/2}" />
   </joint>
 

@@ -4,7 +4,7 @@
   <node name="fiducial_transform_publisher" pkg="tabletop"
         type="fiducial_transform_publisher" output="screen">
     <rosparam>
-      camera_frame: camera_frame
+      camera_frame: camera_link
       fiducials:
       - id: 0
         frame: block

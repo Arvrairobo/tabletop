@@ -1,0 +1,68 @@
+#! /usr/bin/env python
+
+"""Publishes fiducial detections based on robot position and mock block
+   and goal locations."""
+
+import rospy
+import tf
+import tf2_ros
+from fiducial_msgs.msg import FiducialTransformArray, FiducialTransform
+
+
+class Topics:
+    FIDUCIAL_TRANSFORMS = '/fiducial_transforms'
+
+
+class MockDetector:
+
+    def run(self):
+        rospy.init_node('transform_publisher')
+
+        self.tfBuffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tfBuffer)
+ 
+        rate = rospy.Rate(rospy.get_param('~rate', 1.0))
+
+        self.fiducials = rospy.get_param('~fiducials')
+
+        self.fiducial_pub = rospy.Publisher(Topics.FIDUCIAL_TRANSFORMS,
+                                            FiducialTransformArray,
+                                            queue_size=1)
+
+        while not rospy.is_shutdown():
+            self.publish_detections()
+            rate.sleep()
+
+
+    def publish_detections(self):
+        transforms = []
+        for f in self.fiducials:
+            try:
+                trans = self.tfBuffer.lookup_transform(f['child_frame'],
+                                                       f['mock_frame'],
+                                                       rospy.Time(0))
+            except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+                rospy.logerr('Cannot get transform %s --> %s: %s',
+                             f['mock_frame'], f['child_frame'],
+                             str(e))
+                             
+                return
+
+            transform = FiducialTransform()
+            transform.fiducial_id = f['id']
+            transform.transform.translation = trans.transform.translation
+            transform.transform.rotation = trans.transform.rotation
+            transforms.append(transform)
+
+        msg = FiducialTransformArray()
+        msg.header.stamp = rospy.Time.now()
+        msg.transforms = transforms
+        self.fiducial_pub.publish(msg)
+
+
+if __name__ == "__main__":
+    try:
+        MockDetector().run()
+
+    except rospy.ROSInterruptException:
+        pass

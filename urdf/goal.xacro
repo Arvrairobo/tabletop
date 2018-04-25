@@ -49,7 +49,7 @@
   </joint>
     
   <!-- The goal fiducial -->
-  <link name="goal">
+  <link name="mock_goal">
     <visual>
       <origin xyz="${-fiducial_thickness} 0 0" rpy="0 0 0" />
       <geometry>
@@ -60,7 +60,7 @@
   </link>
   <joint name="goal_back_to_goal" type="fixed">
     <parent link="goal_back" />
-    <child link="goal" />
+    <child link="mock_goal" />
     <origin xyz="0 0 ${fiducial_height}" rpy="0 0 ${pi}" />
   </joint>
     
