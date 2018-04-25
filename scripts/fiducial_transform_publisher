@@ -47,10 +47,11 @@ class TransformPublisher:
                               frame)
                 translation = t.transform.translation
                 rotation = t.transform.rotation
+                # Adjust the transformation to be relative to the camera.
                 self.tfPub.sendTransform(
-                    (translation.x, translation.y, translation.z),
-                    (rotation.x, rotation.y, rotation.z, rotation.w),
-                    time, self.camera_frame, frame)
+                    (translation.z, -translation.x, translation.y),
+                    (-rotation.x, -rotation.y, -rotation.z, rotation.w),
+                    time, frame, self.camera_frame)
 
 
 if __name__ == "__main__":
