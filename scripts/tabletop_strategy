@@ -6,6 +6,7 @@ from math import pi
 import rospy
 import tf
 import tf2_ros
+from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from ros_arduino_msgs.msg import Digital
@@ -45,17 +46,16 @@ class Strategy:
         self.goal_frame = rospy.get_param('~block_frame', 'goal')
         self.reference_frame = rospy.get_param('~reference_frame', 'odom')
 
-        self.goal_pub = self.Publisher('move_base_simple/goal', PoseStamped,
-                                       queue_size=1)
+        self.goal_pub = rospy.Publisher('move_base_simple/goal', PoseStamped,
+                                        queue_size=1)
 
-        self.Subscriber('goal_achieved', Bool, self.on_goal_achieved)
-        self.Subscriber('arduino/sensor/button_a', Digital,
-                        self.on_button_a)
-        self.Subscriber('arduino/sensor/button_b', Digital,
-                        self.on_button_b)
+        rospy.Subscriber('goal_achieved', Bool, self.on_goal_achieved)
+        rospy.Subscriber('arduino/sensor/button_a', Digital,
+                         self.on_button_a)
+        rospy.Subscriber('arduino/sensor/button_b', Digital,
+                         self.on_button_b)
 
         while not rospy.is_shutdown():
-            self.publish_detections()
             rate.sleep()
 
 
