@@ -115,25 +115,20 @@
     <rosparam>
       max_distance: 1.5
       min_distance: 0.010
+      reference_frame: odom
       fiducials:
       - id: 0
         mock_frame: mock_block
-        frame: block
-        child_frame: odom
-      - id: 1
-        mock_frame: mock_block_top
-        frame: block_top
-        child_frame: odom
+        frame: camera_link
       - id: 9
         mock_frame: mock_goal
-        frame: goal
-        child_frame: odom
+        frame: camera_link
     </rosparam>
   </node>
 
   <include file="$(find tabletop)/launch/planner.launch" />
 
   <node name="rviz" pkg="rviz" type="rviz"
-        args="-d $(find tabletop)/config/tabletop.rviz" />
+        args="-d $(find tabletop)/config/mock_mission.rviz" />
 
 </launch>

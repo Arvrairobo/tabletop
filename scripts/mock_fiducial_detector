@@ -3,9 +3,11 @@
 """Publishes fiducial detections based on robot position and mock block
    and goal locations."""
 
+from math import pi
 import rospy
 import tf
 import tf2_ros
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from fiducial_msgs.msg import FiducialTransformArray, FiducialTransform
 
 
@@ -23,6 +25,7 @@ class MockDetector:
  
         rate = rospy.Rate(rospy.get_param('~rate', 1.0))
 
+        self.reference_frame = rospy.get_param('~reference_frame')
         self.fiducials = rospy.get_param('~fiducials')
 
         self.fiducial_pub = rospy.Publisher(Topics.FIDUCIAL_TRANSFORMS,
@@ -38,26 +41,60 @@ class MockDetector:
         transforms = []
         for f in self.fiducials:
             try:
-                trans = self.tfBuffer.lookup_transform(f['child_frame'],
+                trans = self.tfBuffer.lookup_transform(f['frame'],
                                                        f['mock_frame'],
                                                        rospy.Time(0))
             except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
                 rospy.logerr('Cannot get transform %s --> %s: %s',
-                             f['mock_frame'], f['child_frame'],
+                             f['frame'], f['mock_frame'],
                              str(e))
                              
                 return
 
             transform = FiducialTransform()
             transform.fiducial_id = f['id']
-            transform.transform.translation = trans.transform.translation
-            transform.transform.rotation = trans.transform.rotation
+
+            # Get relative heading of fiducial from observer.
+            diff_heading = self.get_heading(self.reference_frame,
+                                            f['mock_frame']) \
+                            - self.get_heading(self.reference_frame,
+                                               f['frame'])
+
+            # Fiducial axes are X left, Y up, Z away from observer.
+            translation = trans.transform.translation
+            q = quaternion_from_euler(0, diff_heading-pi, 0)
+
+            transform.transform.translation.x = -translation.y
+            transform.transform.translation.y = 0
+            transform.transform.translation.z = translation.x
+            transform.transform.rotation.x = q[0]
+            transform.transform.rotation.y = q[1]
+            transform.transform.rotation.z = q[2]
+            transform.transform.rotation.w = q[3]
             transforms.append(transform)
 
         msg = FiducialTransformArray()
         msg.header.stamp = rospy.Time.now()
         msg.transforms = transforms
         self.fiducial_pub.publish(msg)
+
+    def get_heading(self, reference_frame, frame):
+        try:
+            trans = self.tfBuffer.lookup_transform(reference_frame, frame,
+                                                   rospy.Time(0))
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
+            rospy.logerr('Cannot get transform %s --> %s: %s',
+                         reference_frame, frame, str(e))
+            return
+
+        translation = trans.transform.translation
+        q = [trans.transform.rotation.x,
+             trans.transform.rotation.y,
+             trans.transform.rotation.z,
+             trans.transform.rotation.w]
+        x_rot, y_rot, z_rot = euler_from_quaternion(q)
+
+        return z_rot
 
 
 if __name__ == "__main__":
