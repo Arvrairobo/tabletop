@@ -145,7 +145,7 @@ class Strategy:
 
         sm.userdata.face_goal_offset = 0.4
         sm.userdata.approach_goal_offset = 0.35
-        sm.userdata.leave_block_offset = 0.1
+        sm.userdata.leave_block_offset = 0.22
         sm.userdata.retreat_offset = 0.35
 
         with sm:
@@ -300,6 +300,9 @@ class Strategy:
                                        'object_pose': 'home_pose',
                                        'offset': 'zero_offset',
                                        'angle': 'zero_angle'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
                                    })
 
         result = sm.execute()
