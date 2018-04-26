@@ -11,38 +11,86 @@ from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from ros_arduino_msgs.msg import Digital
 from diff_drive.pose import Pose
+import actionlib
+import smach
+import smach_ros
+from smach import StateMachine
+from smach_ros import SimpleActionState
+import diff_drive
+from diff_drive.msg import GoToPoseAction, GoToPoseGoal
 
-class State:
 
-    def __init__(self, name):
-        self.name = name
-
-    def get_name(self):
-        return self.name
+class Names:
+    DIFF_DRIVE_SERVER = 'diff_drive_go_to_goal'
 
 
-class States:
-    IDLE = State('IDLE')
-    FACING_BLOCK = State('FACING_BLOCK')
-    APPROACHING_BLOCK = State('APPROACHING_BLOCK')
-    GRABBING_BLOCK = State('GRABBING_BLOCK')
-    FACING_GOAL = State('FACING_GOAL')
-    APPROACHING_GOAL = State('APPROACHING_GOAL')
-    PLACING_BLOCK = State('PLACING_BLOCK')
-    LEAVING_BLOCK = State('LEAVING_BLOCK')
-    FACING_ORIGIN = State('FACING_ORIGIN')
-    RETURNING_TO_ORIGIN = State('RETURNING_TO_ORIGIN')
+class Outcomes:
+    SUCCESS = 'success'
+    FAILURE = 'failure'
+
+
+class FindObject(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            input_keys=['node', 'frame', 'delay'],
+            output_keys=['node', 'frame', 'pose', 'delay'])
+
+    def execute(self, userdata):
+        rospy.sleep(userdata.delay)
+        pose = userdata.node.get_frame_pose(userdata.frame)
+        rospy.loginfo('%s pose: %s', userdata.frame, pose)
+        if pose is None:
+            return Outcomes.FAILURE
+        else:
+            userdata.pose = pose
+            return Outcomes.SUCCESS
+
+
+class MoveToPose(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            input_keys=['object_pose', 'node', 'offset', 'angle'],
+            output_keys=['object_pose', 'node', 'offset', 'angle'])
+
+    def execute(self, userdata):
+        object_pose = userdata.object_pose
+        desired_pose = Pose()
+        desired_pose.x = object_pose.x - userdata.offset
+        desired_pose.y = object_pose.y
+        desired_pose.theta = userdata.node.normalize_angle(
+            object_pose.theta + userdata.angle)
+
+        q_pose = userdata.node.get_quaternion_pose(desired_pose)
+
+        action_goal = GoToPoseGoal()
+        action_goal.pose.pose.position.x = q_pose.pose.position.x
+        action_goal.pose.pose.position.y = q_pose.pose.position.y
+        action_goal.pose.pose.position.z = q_pose.pose.position.z
+        action_goal.pose.pose.orientation.x = q_pose.pose.orientation.x
+        action_goal.pose.pose.orientation.y = q_pose.pose.orientation.y
+        action_goal.pose.pose.orientation.z = q_pose.pose.orientation.z
+        action_goal.pose.pose.orientation.w = q_pose.pose.orientation.w
+        success = userdata.node.send_goal(action_goal)
+        if success:
+            return Outcomes.SUCCESS
+        else:
+            return Outcomes.FAILURE
+
 
 class Strategy:
 
     def run(self):
         rospy.init_node('tabletop_strategy')
 
-        self.state = States.IDLE
-        self.state_list = []
- 
         self.tf_buffer = tf2_ros.Buffer()
         self.listener = tf2_ros.TransformListener(self.tf_buffer)
+
+        self.action_client = actionlib.SimpleActionClient(
+            Names.DIFF_DRIVE_SERVER, GoToPoseAction)
 
         rate = rospy.Rate(rospy.get_param('~rate', 10.0))
 
@@ -59,9 +107,190 @@ class Strategy:
         rospy.Subscriber('arduino/sensor/button_b', Digital,
                          self.on_button_b)
 
-        while not rospy.is_shutdown():
-            rate.sleep()
 
+        sm = StateMachine([Outcomes.SUCCESS, Outcomes.FAILURE])
+        sm.userdata.node = self
+        sm.userdata.home_pose = PoseStamped()
+        sm.userdata.block_pose = PoseStamped()
+        sm.userdata.goal_pose = PoseStamped()
+        sm.userdata.robot_frame = 'base_link'
+        sm.userdata.block_frame = 'block'
+        sm.userdata.goal_frame = 'goal'
+
+        sm.userdata.object_find_delay = 3.0
+        sm.userdata.robot_find_delay = 0.0
+        sm.userdata.half_turn = pi
+        sm.userdata.zero_offset = 0
+        sm.userdata.zero_angle = 0
+
+        sm.userdata.face_block_offset = 0.3
+        sm.userdata.approach_block_offset = 0.25
+        sm.userdata.engage_block_offset = 0.05
+
+        sm.userdata.face_goal_offset = 0.4
+        sm.userdata.approach_goal_offset = 0.35
+        sm.userdata.leave_block_offset = 0.1
+        sm.userdata.retreat_offset = 0.35
+
+        with sm:
+            smach.StateMachine.add('FIND_HOME', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'home_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_BLOCK'
+                                   })
+
+            smach.StateMachine.add('FIND_BLOCK', FindObject(),
+                                   remapping={
+                                       'frame': 'block_frame',
+                                       'pose': 'block_pose',
+                                       'delay': 'robot_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_BLOCK'
+                                   })
+
+            smach.StateMachine.add('FACE_BLOCK', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'block_pose',
+                                       'offset': 'face_block_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'REFIND_BLOCK'
+                                   })
+
+            smach.StateMachine.add('REFIND_BLOCK', FindObject(),
+                                   remapping={
+                                       'frame': 'block_frame',
+                                       'pose': 'block_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'APPROACH_BLOCK'
+                                   })
+
+            smach.StateMachine.add('APPROACH_BLOCK', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'block_pose',
+                                       'offset': 'approach_block_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'PICK_UP_BLOCK'
+                                   })
+
+
+            smach.StateMachine.add('PICK_UP_BLOCK', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'block_pose',
+                                       'offset': 'engage_block_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_GOAL'
+                                   })
+
+            smach.StateMachine.add('FIND_GOAL', FindObject(),
+                                   remapping={
+                                       'frame': 'goal_frame',
+                                       'pose': 'goal_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_GOAL'
+                                   })
+
+            smach.StateMachine.add('FACE_GOAL', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'goal_pose',
+                                       'offset': 'face_goal_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'REFIND_GOAL'
+                                   })
+
+            smach.StateMachine.add('REFIND_GOAL', FindObject(),
+                                   remapping={
+                                       'frame': 'goal_frame',
+                                       'pose': 'goal_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'LEAVE_BLOCK'
+                                   })
+
+            smach.StateMachine.add('LEAVE_BLOCK', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'goal_pose',
+                                       'offset': 'leave_block_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'RETREAT_FROM_GOAL'
+                                   })
+
+            smach.StateMachine.add('RETREAT_FROM_GOAL', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'goal_pose',
+                                       'offset': 'retreat_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_ROBOT'
+                                   })
+
+            smach.StateMachine.add('FIND_ROBOT', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'robot_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'TURN_AROUND'
+                                   })
+
+            smach.StateMachine.add('TURN_AROUND', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'robot_pose',
+                                       'offset': 'zero_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'REFIND_ROBOT'
+                                   })
+
+            smach.StateMachine.add('REFIND_ROBOT', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'robot_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'RETURN_TO_HOME'
+                                   })
+
+            smach.StateMachine.add('RETURN_TO_HOME', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'home_pose',
+                                       'offset': 'zero_offset',
+                                       'angle': 'zero_angle'
+                                   })
+
+        result = sm.execute()
+        rospy.loginfo('Mission result: %s', result)
+
+
+    def send_goal(self, goal):
+        self.action_client.wait_for_server()
+        self.action_client.send_goal(goal)
+        self.action_client.wait_for_result()
+        result = self.action_client.get_result()
+        return result.success
 
     def on_button_a(self, msg):
         if self.state is States.IDLE and msg.value == 1:
@@ -103,18 +332,29 @@ class Strategy:
 
         return pose
 
-    def send_goal_pose(self, pose):
-        q = quaternion_from_euler(0, 0, pose.theta)
+    def get_quaternion_pose(self, angle_pose):
+        q = quaternion_from_euler(0, 0, angle_pose.theta)
 
-        goal = PoseStamped()
-        goal.header.frame_id = self.reference_frame
-        goal.pose.position.x = pose.x
-        goal.pose.position.y = pose.y
-        goal.pose.orientation.x = q[0]
-        goal.pose.orientation.y = q[1]
-        goal.pose.orientation.z = q[2]
-        goal.pose.orientation.w = q[3]
-        self.goal_pub.publish(goal)
+        pose = PoseStamped()
+        pose.header.frame_id = self.reference_frame
+        pose.pose.position.x = angle_pose.x
+        pose.pose.position.y = angle_pose.y
+        pose.pose.orientation.x = q[0]
+        pose.pose.orientation.y = q[1]
+        pose.pose.orientation.z = q[2]
+        pose.pose.orientation.w = q[3]
+        return pose
+
+    def send_goal_pose(self, pose):
+        self.goal_pub.publish(self.get_quaternion_pose(pose))
+
+    def normalize_angle(self, angle):
+        while angle >= 2*pi:
+            angle -= 2*pi
+        while angle < 0:
+            angle += 2*pi
+        return angle
+
 
 if __name__ == "__main__":
     try:

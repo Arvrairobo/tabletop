@@ -10,8 +10,20 @@ project(tabletop)
 find_package(catkin REQUIRED COMPONENTS
   diff_drive
   prsg2_robot
-  raspicam_node
+  #raspicam_node
+  aruco_detect
+  fiducial_msgs
+  ros_arduino_msgs
+  smach
+  smach_ros
   rospy
+  std_msgs
+  geometry_msgs
+  tf
+  tf2
+  image_transport
+  topic_tools
+  rviz
 )
 
 ## System dependencies are found with CMake's conventions
@@ -106,7 +118,7 @@ find_package(catkin REQUIRED COMPONENTS
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES tabletop
-#  CATKIN_DEPENDS diff_drive prsg2_robot raspicam_node rospy
+  CATKIN_DEPENDS actionlib_msgs diff_drive prsg2_robot raspicam_node rospy
 #  DEPENDS system_lib
 )
 
