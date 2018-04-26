@@ -54,15 +54,21 @@ class MockDetector:
             transform = FiducialTransform()
             transform.fiducial_id = f['id']
 
+            fiducial_heading = self.get_heading(self.reference_frame,
+                                                f['mock_frame'])
+            observer_heading = self.get_heading(self.reference_frame,
+                                                f['frame'])
+
             # Get relative heading of fiducial from observer.
-            diff_heading = self.get_heading(self.reference_frame,
-                                            f['mock_frame']) \
-                            - self.get_heading(self.reference_frame,
-                                               f['frame'])
+            heading_diff = observer_heading - fiducial_heading - pi
+            heading_diff = self.normalize_angle(heading_diff)
+
+            rospy.loginfo('observer heading=%f fiducial heading=%f diff=%f',
+                          observer_heading, fiducial_heading, heading_diff)
 
             # Fiducial axes are X left, Y up, Z away from observer.
             translation = trans.transform.translation
-            q = quaternion_from_euler(0, diff_heading-pi, 0)
+            q = quaternion_from_euler(0, heading_diff, 0)
 
             transform.transform.translation.x = -translation.y
             transform.transform.translation.y = 0
@@ -96,6 +102,12 @@ class MockDetector:
 
         return z_rot
 
+    def normalize_angle(self, angle):
+        while angle >= 2*pi:
+            angle -= 2*pi
+        while angle < 0:
+            angle += 2*pi
+        return angle
 
 if __name__ == "__main__":
     try:
