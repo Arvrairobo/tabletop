@@ -2,15 +2,26 @@
 
 """Publishes TF transforms from fiducial detections."""
 
+from math import pi
 import rospy
 import tf
 import tf2_ros
+from tf.transformations import euler_from_quaternion, quaternion_from_euler
 from tf.broadcaster import TransformBroadcaster
 from fiducial_msgs.msg import FiducialTransformArray
 
 
 class Topics:
     FIDUCIAL_TRANSFORMS = '/fiducial_transforms'
+
+
+class FiducialTarget:
+
+    def __init__(self):
+        self.id = 0
+        self.frame = ''
+        self.z_offset = 0
+        self.z_factor = 1
 
 
 class TransformPublisher:
@@ -22,9 +33,14 @@ class TransformPublisher:
 
         self.camera_frame = rospy.get_param('~camera_frame')
         self.fiducials = rospy.get_param('~fiducials')
-        self.frame_for_fiducial = {}
+        self.fiducial_target = {}
         for f in self.fiducials:
-            self.frame_for_fiducial[f['id']] = f['frame']
+            target = FiducialTarget()
+            target.id = f['id']
+            target.frame = f['frame']
+            target.z_offset = f['z_offset']
+            target.z_factor = f['z_factor']
+            self.fiducial_target[target.id] = target
 
         rospy.Subscriber(Topics.FIDUCIAL_TRANSFORMS, FiducialTransformArray,
                          self.on_fiducial_transforms)
@@ -39,19 +55,33 @@ class TransformPublisher:
     def on_fiducial_transforms(self, msg):
         time = msg.header.stamp
         for t in msg.transforms:
-            if not t.fiducial_id in self.frame_for_fiducial:
+            if not t.fiducial_id in self.fiducial_target:
                 rospy.loginfo('Fiducial not found: %d', t.fiducial_id)
             else:
-                frame = self.frame_for_fiducial[t.fiducial_id]
-                rospy.loginfo('Found fiducial %d --> %s', t.fiducial_id,
-                              frame)
+                target = self.fiducial_target[t.fiducial_id]
+                # rospy.loginfo('Found fiducial %d --> %s', t.fiducial_id,
+                #               target.frame)
+
                 translation = t.transform.translation
                 rotation = t.transform.rotation
+
+                x_rot, y_rot, z_rot = euler_from_quaternion(
+                    [rotation.x, rotation.y, rotation.z, rotation.w])
+                rospy.loginfo('%d: %.2f %.2f %.2f %.1f %.1f %.1f',
+                              t.fiducial_id,
+                              translation.x, translation.y,
+                              translation.z * target.z_factor,
+                              x_rot*180/pi, y_rot*180/pi, z_rot*180/pi)
+
+                # Get a quaternion for the block rotation around its
+                # vertical axis (Y).
+                q = quaternion_from_euler(0, 0, pi-y_rot)
+
                 # Adjust the transformation to be relative to the camera.
                 self.tfPub.sendTransform(
-                    (translation.z, -translation.x, translation.y),
-                    (-rotation.x, -rotation.y, -rotation.z, rotation.w),
-                    time, frame, self.camera_frame)
+                    (translation.z, -translation.x, 0),
+                    (q[0], q[1], q[2], q[3]),
+                    time, target.frame, self.camera_frame)
 
 
 if __name__ == "__main__":

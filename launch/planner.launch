@@ -6,12 +6,21 @@
     <rosparam>
       camera_frame: camera_link
       fiducials:
+      # The block front fiducial
       - id: 0
         frame: block
+        z_offset: 0
+        z_factor: 1
+      # The block top fiducial
+      # But need to rotate!
       - id: 1
-        frame: block_top
+        frame: block
+        z_offset: 0.02
+        z_factor: 1
       - id: 9
         frame: goal
+        z_offset: 0
+        z_factor: 1
     </rosparam>
   </node>
 

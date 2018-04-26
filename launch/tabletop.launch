@@ -8,7 +8,7 @@
     <arg name="shutter_speed" value="$(arg shutter_speed)" />
   </include>
 
-  <!-- Filter images from 10 Hz to 1 Hz for aruco_detect. -->
+  <!-- Filter images from 10 Hz to about 1 Hz for aruco_detect. -->
   <node name="drop" pkg="topic_tools" type="drop"
         args="/raspicam_node/image/compressed 9 10 /image/compressed" />
 
@@ -18,12 +18,13 @@
   <node name="aruco_detect" pkg="aruco_detect" type="aruco_detect">
     <!-- Using DICT_5X5_50 -->
     <param name="~dictionary" value="4" />
-    <!-- Actual fiducials are 30mm. Adjust value to calibrate at 15cm. -->
-    <param name="~fiducial_len" value=".0265" />
+    <param name="~fiducial_len" value=".050" />
     <remap from="/camera_info" to="/raspicam_node/camera_info" />
   </node>
 
+<!--
   <include file="$(find tabletop)/launch/planner.launch" />
+-->
 
 <!--
   <node name="diff_drive_go_to_goal" pkg="diff_drive"
