@@ -1,0 +1,80 @@
+#! /usr/bin/env python
+
+"""Implements the tabletop strategy."""
+
+from math import pi
+import rospy
+import tf
+import tf2_ros
+from geometry_msgs.msg import PoseStamped
+from tf.transformations import quaternion_from_euler, euler_from_quaternion
+from ros_arduino_msgs.msg import Digital
+
+class State:
+
+    def __init__(self, name):
+        self.name = name
+
+    def get_name(self):
+        return self.name
+
+
+class States:
+    IDLE = State('IDLE')
+    FACING_BLOCK = State('FACING_BLOCK')
+    APPROACHING_BLOCK = State('APPROACHING_BLOCK')
+    GRABBING_BLOCK = State('GRABBING_BLOCK')
+    FACING_GOAL = State('FACING_GOAL')
+    APPROACHING_GOAL = State('APPROACHING_GOAL')
+    PLACING_BLOCK = State('PLACING_BLOCK')
+    LEAVING_BLOCK = State('LEAVING_BLOCK')
+    FACING_ORIGIN = State('FACING_ORIGIN')
+    RETURNING_TO_ORIGIN = State('RETURNING_TO_ORIGIN')
+
+class Strategy:
+
+    def run(self):
+        rospy.init_node('tabletop_strategy')
+
+        self.state = States.IDLE
+        self.state_list = []
+ 
+        rate = rospy.Rate(rospy.get_param('~rate', 10.0))
+
+        self.block_frame = rospy.get_param('~block_frame', 'block')
+        self.goal_frame = rospy.get_param('~block_frame', 'goal')
+        self.reference_frame = rospy.get_param('~reference_frame', 'odom')
+
+        self.goal_pub = self.Publisher('move_base_simple/goal', PoseStamped,
+                                       queue_size=1)
+
+        self.Subscriber('goal_achieved', Bool, self.on_goal_achieved)
+        self.Subscriber('arduino/sensor/button_a', Digital,
+                        self.on_button_a)
+        self.Subscriber('arduino/sensor/button_b', Digital,
+                        self.on_button_b)
+
+        while not rospy.is_shutdown():
+            self.publish_detections()
+            rate.sleep()
+
+
+    def on_button_a(self, msg):
+        if self.state is States.IDLE and msg.value == 1:
+            rospy.loginfo('Should start plan 1')
+        pass
+
+    def on_button_b(self, msg):
+        if self.state is States.IDLE and msg.value == 1:
+            rospy.loginfo('Should start plan 2')
+        pass
+
+    def on_goal_achieved(self, msg):
+        pass
+
+if __name__ == "__main__":
+    try:
+        Strategy().run()
+
+    except rospy.ROSInterruptException:
+        pass

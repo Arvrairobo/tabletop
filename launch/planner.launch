@@ -24,4 +24,15 @@
     </rosparam>
   </node>
 
+  <node name="strategy" pkg="tabletop" type="tabletop_strategy"
+        output="screen">
+    <rosparam>
+      rate: 10
+      block_frame: block
+      goal_frame: goal
+      reference_frame: odom
+    </rosparam>
+    <remap from="cmd_vel" to="robot/cmd_vel" />
+  </node>
+
 </launch>

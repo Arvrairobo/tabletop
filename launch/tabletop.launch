@@ -22,16 +22,12 @@
     <remap from="/camera_info" to="/raspicam_node/camera_info" />
   </node>
 
-<!--
-  <include file="$(find tabletop)/launch/planner.launch" />
--->
-
-<!--
   <node name="diff_drive_go_to_goal" pkg="diff_drive"
         type="diff_drive_go_to_goal">
     <param name="~max_linear_velocity" value="0.05" />
-    <remap from="~cmd_vel" to="cmd_vel" />
+    <remap from="cmd_vel" to="robot/cmd_vel" />
   </node>
--->
+
+  <include file="$(find tabletop)/launch/planner.launch" />
 
 </launch>

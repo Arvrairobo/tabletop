@@ -30,20 +30,20 @@
   <!-- Publish the robot state. -->
   <node name="robot_state_publisher" pkg="robot_state_publisher"
         type="state_publisher" output="screen">
-    <param name="publish_frequency" value="10.0"/>
+    <param name="publish_frequency" value="10.0" />
   </node>
 
   <!-- Publish frame transformations for joint angles. -->
   <node name="joint_state_publisher" pkg="joint_state_publisher"
         type="joint_state_publisher" output="screen">
     <param name="use_gui" value="False" />
-    <param name="rate" value="10.0"/>
+    <param name="rate" value="10.0" />
   </node>
 
   <!-- Publish the block state. -->
   <node name="block_state_publisher" pkg="robot_state_publisher"
         type="state_publisher" output="screen">
-    <param name="publish_frequency" value="10.0"/>
+    <param name="publish_frequency" value="10.0" />
     <remap from="robot_description" to="block_description" />
   </node>
 
@@ -53,7 +53,7 @@
   <!-- Publish the goal state. -->
   <node name="goal_state_publisher" pkg="robot_state_publisher"
         type="state_publisher">
-    <param name="publish_frequency" value="10.0"/>
+    <param name="publish_frequency" value="10.0" />
     <remap from="robot_description" to="goal_description" />
   </node>
 
@@ -63,7 +63,7 @@
   <!-- Publish the table state. -->
   <node name="table_state_publisher" pkg="robot_state_publisher"
         type="state_publisher">
-    <param name="publish_frequency" value="10.0"/>
+    <param name="publish_frequency" value="10.0" />
     <remap from="robot_description" to="table_description" />
   </node>
 
@@ -78,7 +78,7 @@
       max_motor_speed: 3000
       timeout: 1.0
     </rosparam>
-    <remap from="cmd_vel" to="/robot/cmd_vel" />
+    <remap from="cmd_vel" to="robot/cmd_vel" />
   </node>
   
   <node name="odom_publisher" pkg="diff_drive" type="diff_drive_odometry"
@@ -107,7 +107,7 @@
     <param name="~linear_tolerance" value="0.01" />
     <param name="~angular_tolerance" value="0.04" />
     <param name="~forwardMovementOnly" value="false" />
-    <remap from="cmd_vel" to="/robot/cmd_vel" />
+    <remap from="cmd_vel" to="robot/cmd_vel" />
   </node>
 
   <node name="mock_detector" pkg="tabletop" type="mock_fiducial_detector"
