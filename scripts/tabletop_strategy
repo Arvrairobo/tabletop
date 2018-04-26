@@ -10,6 +10,7 @@ from std_msgs.msg import Bool
 from geometry_msgs.msg import PoseStamped
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from ros_arduino_msgs.msg import Digital
+from diff_drive.pose import Pose
 
 class State:
 
@@ -40,6 +41,9 @@ class Strategy:
         self.state = States.IDLE
         self.state_list = []
  
+        self.tf_buffer = tf2_ros.Buffer()
+        self.listener = tf2_ros.TransformListener(self.tf_buffer)
+
         rate = rospy.Rate(rospy.get_param('~rate', 10.0))
 
         self.block_frame = rospy.get_param('~block_frame', 'block')
@@ -61,8 +65,12 @@ class Strategy:
 
     def on_button_a(self, msg):
         if self.state is States.IDLE and msg.value == 1:
-            rospy.loginfo('Should start plan 1')
-        pass
+            block_pose = self.get_frame_pose(self.block_frame)
+            goal_pose = Pose()
+            goal_pose.x = block_pose.x - 0.25
+            goal_pose.y = block_pose.y
+            goal_pose.theta = 0
+            self.send_goal_pose(goal_pose)
 
     def on_button_b(self, msg):
         if self.state is States.IDLE and msg.value == 1:
@@ -71,6 +79,42 @@ class Strategy:
 
     def on_goal_achieved(self, msg):
         pass
+
+    def get_frame_pose(self, frame):
+        try:
+            trans = self.tf_buffer.lookup_transform(self.reference_frame,
+                                                    frame, rospy.Time(0))
+        except (tf2_ros.LookupException, tf2_ros.ConnectivityException,
+                tf2_ros.ExtrapolationException) as e:
+            rospy.logerr('Cannot get transform %s --> %s: %s',
+                         self.reference_frame, frame, str(e))
+            return
+
+        q = [trans.transform.rotation.x,
+             trans.transform.rotation.y,
+             trans.transform.rotation.z,
+             trans.transform.rotation.w]
+        roll, pitch, yaw = euler_from_quaternion(q)
+
+        pose = Pose()
+        pose.x = trans.transform.translation.x
+        pose.y = trans.transform.translation.y
+        pose.theta = yaw
+
+        return pose
+
+    def send_goal_pose(self, pose):
+        q = quaternion_from_euler(0, 0, pose.theta)
+
+        goal = PoseStamped()
+        goal.header.frame_id = self.reference_frame
+        goal.pose.position.x = pose.x
+        goal.pose.position.y = pose.y
+        goal.pose.orientation.x = q[0]
+        goal.pose.orientation.y = q[1]
+        goal.pose.orientation.z = q[2]
+        goal.pose.orientation.w = q[3]
+        self.goal_pub.publish(goal)
 
 if __name__ == "__main__":
     try:
