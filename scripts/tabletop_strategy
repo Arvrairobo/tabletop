@@ -110,6 +110,7 @@ class Strategy:
         rate = rospy.Rate(rospy.get_param('~rate', 10.0))
 
         self.button_a = 0
+        self.button_b = 0
         self.block_frame = rospy.get_param('~block_frame', 'block')
         self.goal_frame = rospy.get_param('~block_frame', 'goal')
         self.reference_frame = rospy.get_param('~reference_frame', 'odom')
@@ -171,6 +172,16 @@ class Strategy:
                                        'delay': 'robot_find_delay'
                                    },
                                    transitions={
+                                       Outcomes.SUCCESS: 'FIND_GOAL'
+                                   })
+
+            smach.StateMachine.add('FIND_GOAL', FindObject(),
+                                   remapping={
+                                       'frame': 'goal_frame',
+                                       'pose': 'goal_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
                                        Outcomes.SUCCESS: 'FACE_BLOCK'
                                    })
 
@@ -210,16 +221,6 @@ class Strategy:
                                        'object_pose': 'block_pose',
                                        'offset': 'engage_block_offset',
                                        'angle': 'half_turn'
-                                   },
-                                   transitions={
-                                       Outcomes.SUCCESS: 'FIND_GOAL'
-                                   })
-
-            smach.StateMachine.add('FIND_GOAL', FindObject(),
-                                   remapping={
-                                       'frame': 'goal_frame',
-                                       'pose': 'goal_pose',
-                                       'delay': 'object_find_delay'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'FACE_GOAL'
@@ -320,9 +321,7 @@ class Strategy:
         self.button_a = msg.value
 
     def on_button_b(self, msg):
-        if self.state is States.IDLE and msg.value == 1:
-            rospy.loginfo('Should start plan 2')
-        pass
+        self.button_b = msg.value
 
     def on_goal_achieved(self, msg):
         pass

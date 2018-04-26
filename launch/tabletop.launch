@@ -2,8 +2,12 @@
 <launch>
 
   <arg name="shutter_speed" default="50000" />
+  <arg name="cmd_vel_topic" default="robot/cmd_vel" />
 
-  <include file="$(find prsg2_robot)/launch/prsg2_controller.launch" />
+  <include file="$(find prsg2_robot)/launch/prsg2_controller.launch">
+    <arg name="cmd_vel_topic" value="$(arg cmd_vel_topic)" />
+  </include>
+
   <include file="$(find tabletop)/launch/camera.launch">
     <arg name="shutter_speed" value="$(arg shutter_speed)" />
   </include>
@@ -23,9 +27,16 @@
   </node>
 
   <node name="diff_drive_go_to_goal" pkg="diff_drive"
-        type="diff_drive_go_to_goal">
-    <param name="~max_linear_velocity" value="0.05" />
-    <remap from="cmd_vel" to="robot/cmd_vel" />
+        type="diff_drive_go_to_goal" output="screen">
+    <param name="~kP" value="1.5" />
+    <param name="~kA" value="8" />
+    <param name="~kB" value="-2" />
+    <param name="~max_linear_speed" value="0.1" />
+    <param name="~max_angular_speed" value="1.0" />
+    <param name="~linear_tolerance" value="0.01" />
+    <param name="~angular_tolerance" value="0.03" />
+    <param name="~forwardMovementOnly" value="false" />
+    <remap from="cmd_vel" to="$(arg cmd_vel_topic)" />
   </node>
 
   <include file="$(find tabletop)/launch/planner.launch" />
