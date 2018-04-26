@@ -10,9 +10,8 @@ Panels:
         - /RobotModel1/Links1
         - /RobotModel1/Links1/base_link1
         - /RobotModel2/Links1
-        - /RobotModel2/Links1/block1
         - /RobotModel3/Links1
-        - /RobotModel3/Links1/goal1
+        - /RobotModel3/Links1/mock_goal1
       Splitter Ratio: 0.5
     Tree Height: 963
   - Class: rviz/Selection
@@ -178,14 +177,14 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        block:
-          Alpha: 1
-          Show Axes: true
-          Show Trail: false
-          Value: true
         block_shape:
           Alpha: 1
           Show Axes: false
+          Show Trail: false
+          Value: true
+        mock_block:
+          Alpha: 1
+          Show Axes: true
           Show Trail: false
           Value: true
       Name: RobotModel
@@ -204,11 +203,6 @@ Visualization Manager:
         Expand Link Details: false
         Expand Tree: false
         Link Tree Style: Links in Alphabetic Order
-        goal:
-          Alpha: 1
-          Show Axes: true
-          Show Trail: false
-          Value: true
         goal_back:
           Alpha: 1
           Show Axes: false
@@ -217,6 +211,11 @@ Visualization Manager:
         goal_floor:
           Alpha: 1
           Show Axes: false
+          Show Trail: false
+          Value: true
+        mock_goal:
+          Alpha: 1
+          Show Axes: true
           Show Trail: false
           Value: true
       Name: RobotModel
@@ -289,7 +288,7 @@ Visualization Manager:
       Pitch: 1.56979632
       Target Frame: <Fixed Frame>
       Value: Orbit (rviz)
-      Yaw: -1.57000005
+      Yaw: 4.71318531
     Saved: ~
 Window Geometry:
   Displays:
