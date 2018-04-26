@@ -29,6 +29,21 @@ class Outcomes:
     FAILURE = 'failure'
 
 
+class WaitForButtonA(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            input_keys=['node'],
+            output_keys=['node'])
+
+    def execute(self, userdata):
+        rate = rospy.Rate(0.1)
+        while not rospy.is_shutdown() and userdata.node.button_a == 0:
+            rate.sleep()
+        return Outcomes.SUCCESS
+
+
 class FindObject(smach.State):
 
     def __init__(self):
@@ -94,6 +109,7 @@ class Strategy:
 
         rate = rospy.Rate(rospy.get_param('~rate', 10.0))
 
+        self.button_a = 0
         self.block_frame = rospy.get_param('~block_frame', 'block')
         self.goal_frame = rospy.get_param('~block_frame', 'goal')
         self.reference_frame = rospy.get_param('~reference_frame', 'odom')
@@ -133,6 +149,11 @@ class Strategy:
         sm.userdata.retreat_offset = 0.35
 
         with sm:
+            smach.StateMachine.add('WAIT_FOR_BUTTON_A', WaitForButtonA(),
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_HOME'
+                                   })
+
             smach.StateMachine.add('FIND_HOME', FindObject(),
                                    remapping={
                                        'frame': 'robot_frame',
@@ -293,13 +314,7 @@ class Strategy:
         return result.success
 
     def on_button_a(self, msg):
-        if self.state is States.IDLE and msg.value == 1:
-            block_pose = self.get_frame_pose(self.block_frame)
-            goal_pose = Pose()
-            goal_pose.x = block_pose.x - 0.25
-            goal_pose.y = block_pose.y
-            goal_pose.theta = 0
-            self.send_goal_pose(goal_pose)
+        self.button_a = msg.value
 
     def on_button_b(self, msg):
         if self.state is States.IDLE and msg.value == 1:
