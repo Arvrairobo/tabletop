@@ -27,21 +27,28 @@ class Names:
 class Outcomes:
     SUCCESS = 'success'
     FAILURE = 'failure'
+    OPTION1 = 'option1'
+    OPTION2 = 'option2'
 
 
-class WaitForButtonA(smach.State):
+class WaitForButton(smach.State):
 
     def __init__(self):
         smach.State.__init__(
-            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            self, outcomes=[Outcomes.OPTION1, Outcomes.OPTION2],
             input_keys=['node'],
             output_keys=['node'])
 
     def execute(self, userdata):
         rate = rospy.Rate(10.0)
-        while not rospy.is_shutdown() and userdata.node.button_a == 0:
+        while not rospy.is_shutdown() and userdata.node.button_a==0 \
+           and userdata.node.button_b==0:
             rate.sleep()
-        return Outcomes.SUCCESS
+
+        if userdata.node.button_a != 0:
+            return Outcomes.OPTION1
+        else:
+            return Outcomes.OPTION2
 
 
 class FindObject(smach.State):
@@ -125,7 +132,8 @@ class Strategy:
                          self.on_button_b)
 
 
-        sm = StateMachine([Outcomes.SUCCESS, Outcomes.FAILURE])
+        sm = StateMachine([Outcomes.SUCCESS, Outcomes.FAILURE,
+                           Outcomes.OPTION1, Outcomes.OPTION2])
         sm.userdata.node = self
         sm.userdata.home_pose = PoseStamped()
         sm.userdata.block_pose = PoseStamped()
@@ -151,9 +159,10 @@ class Strategy:
         sm.userdata.home_offset = -1.6
 
         with sm:
-            smach.StateMachine.add('WAIT_FOR_BUTTON_A', WaitForButtonA(),
+            smach.StateMachine.add('WAIT_FOR_BUTTON', WaitForButton(),
                                    transitions={
-                                       Outcomes.SUCCESS: 'FIND_HOME'
+                                       Outcomes.OPTION1: 'FIND_HOME',
+                                       Outcomes.OPTION2: 'FIND_RETURN_POS'
                                    })
 
             smach.StateMachine.add('FIND_HOME', FindObject(),
@@ -264,7 +273,7 @@ class Strategy:
                                        'angle': 'half_turn'
                                    },
                                    transitions={
-                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
+                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
                                    })
 
 #            smach.StateMachine.add('FIND_BLOCK_IN_GOAL', FindObject(),
@@ -306,6 +315,67 @@ class Strategy:
 #                                   transitions={
 #                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
 #                                   })
+
+
+            smach.StateMachine.add('FIND_RETURN_POS', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'home_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_TABLE_END'
+                                   })
+
+            smach.StateMachine.add('FIND_TABLE_END', FindObject(),
+                                   remapping={
+                                       'frame': 'goal_frame',
+                                       'pose': 'goal_pose',
+                                       'delay': 'robot_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_TABLE_END'
+                                   })
+
+            smach.StateMachine.add('FACE_TABLE_END', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'goal_pose',
+                                       'offset': 'face_goal_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'REFIND_TABLE_END'
+                                   })
+
+            smach.StateMachine.add('REFIND_TABLE_END', FindObject(),
+                                   remapping={
+                                       'frame': 'goal_frame',
+                                       'pose': 'goal_pose',
+                                       'delay': 'object_find_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'DRIVE_TO_END'
+                                   })
+
+            smach.StateMachine.add('DRIVE_TO_END', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'goal_pose',
+                                       'offset': 'leave_block_offset',
+                                       'angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'DO_RETURN'
+                                   })
+
+            smach.StateMachine.add('DO_RETURN', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'home_pose',
+                                       'offset': 'zero_offset',
+                                       'angle': 'zero_angle'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
+                                   })
 
         result = sm.execute()
         rospy.loginfo('Mission result: %s', result)
