@@ -29,7 +29,7 @@
   <node name="diff_drive_go_to_goal" pkg="diff_drive"
         type="diff_drive_go_to_goal" output="screen">
     <param name="~kP" value="1" />
-    <param name="~kA" value="9" />
+    <param name="~kA" value="6" />
     <param name="~kB" value="-3" />
     <param name="~max_linear_speed" value="0.2" />
     <param name="~max_angular_speed" value="1.0" />

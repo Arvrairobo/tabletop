@@ -140,9 +140,9 @@ class Strategy:
         sm.userdata.zero_offset = 0
         sm.userdata.zero_angle = 0
 
-        sm.userdata.face_block_offset = 0.4
-        sm.userdata.approach_block_offset = 0.2
-        sm.userdata.engage_block_offset = 0.0
+        sm.userdata.face_block_offset = -0.4
+        sm.userdata.approach_block_offset = -0.2
+        sm.userdata.engage_block_offset = -0.1
 
         sm.userdata.face_goal_offset = -0.5
         sm.userdata.approach_goal_offset = -0.35
@@ -264,48 +264,48 @@ class Strategy:
                                        'angle': 'half_turn'
                                    },
                                    transitions={
-                                       Outcomes.SUCCESS: 'FIND_BLOCK_IN_GOAL'
-                                   })
-
-            smach.StateMachine.add('FIND_BLOCK_IN_GOAL', FindObject(),
-                                   remapping={
-                                       'frame': 'block_frame',
-                                       'pose': 'block_pose',
-                                       'delay': 'object_find_delay'
-                                   },
-                                   transitions={
-                                       Outcomes.SUCCESS: 'FIND_ROBOT_3'
-                                   })
-
-            smach.StateMachine.add('FIND_ROBOT_3', FindObject(),
-                                    remapping={
-                                       'frame': 'robot_frame',
-                                       'pose': 'robot_pose',
-                                       'delay': 'robot_find_delay'
-                                    },
-                                    transitions={
-				        Outcomes.SUCCESS: 'TURN_AROUND'
-				    })
-
-            smach.StateMachine.add('TURN_AROUND', MoveToPose(),
-                                   remapping={
-                                       'object_pose': 'robot_pose',
-                                       'offset': 'zero_offset',
-                                       'angle': 'half_turn'
-                                   },
-                                   transitions={
-                                       Outcomes.SUCCESS: 'RETURN_TO_HOME'
-                                   })
-
-            smach.StateMachine.add('RETURN_TO_HOME', MoveToPose(),
-                                   remapping={
-                                       'object_pose': 'block_pose',
-                                       'offset': 'home_offset',
-                                       'angle': 'zero_angle'
-                                   },
-                                   transitions={
                                        Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
                                    })
+
+#            smach.StateMachine.add('FIND_BLOCK_IN_GOAL', FindObject(),
+#                                   remapping={
+#                                       'frame': 'block_frame',
+#                                       'pose': 'block_pose',
+#                                       'delay': 'object_find_delay'
+#                                   },
+#                                   transitions={
+#                                       Outcomes.SUCCESS: 'FIND_ROBOT_3'
+#                                   })
+#
+#            smach.StateMachine.add('FIND_ROBOT_3', FindObject(),
+#                                    remapping={
+#                                       'frame': 'robot_frame',
+#                                       'pose': 'robot_pose',
+#                                       'delay': 'robot_find_delay'
+#                                    },
+#                                    transitions={
+#				        Outcomes.SUCCESS: 'TURN_AROUND'
+#				    })
+#
+#            smach.StateMachine.add('TURN_AROUND', MoveToPose(),
+#                                   remapping={
+#                                       'object_pose': 'robot_pose',
+#                                       'offset': 'zero_offset',
+#                                       'angle': 'half_turn'
+#                                   },
+#                                   transitions={
+#                                       Outcomes.SUCCESS: 'RETURN_TO_HOME'
+#                                   })
+#
+#            smach.StateMachine.add('RETURN_TO_HOME', MoveToPose(),
+#                                   remapping={
+#                                       'object_pose': 'block_pose',
+#                                       'offset': 'home_offset',
+#                                       'angle': 'zero_angle'
+#                                   },
+#                                   transitions={
+#                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
+#                                   })
 
         result = sm.execute()
         rospy.loginfo('Mission result: %s', result)
