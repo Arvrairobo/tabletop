@@ -67,11 +67,11 @@ class TransformPublisher:
 
                 x_rot, y_rot, z_rot = euler_from_quaternion(
                     [rotation.x, rotation.y, rotation.z, rotation.w])
-                rospy.loginfo('%d: %.2f %.2f %.2f %.1f %.1f %.1f',
-                              t.fiducial_id,
-                              translation.x, translation.y,
-                              translation.z * target.z_factor,
-                              x_rot*180/pi, y_rot*180/pi, z_rot*180/pi)
+                # rospy.loginfo('%d: %.2f %.2f %.2f %.1f %.1f %.1f',
+                #               t.fiducial_id,
+                #               translation.x, translation.y,
+                #               translation.z * target.z_factor,
+                #               x_rot*180/pi, y_rot*180/pi, z_rot*180/pi)
 
                 # Get a quaternion for the block rotation around its
                 # vertical axis (Y).

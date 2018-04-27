@@ -83,8 +83,7 @@ class MoveToPose(smach.State):
         desired_pose = Pose()
         desired_pose.x = object_pose.x + userdata.offset
         desired_pose.y = object_pose.y
-        desired_pose.theta = userdata.node.normalize_angle(
-            object_pose.theta + userdata.angle)
+        desired_pose.theta = userdata.node.normalize_angle(userdata.angle)
 
         q_pose = userdata.node.get_quaternion_pose(desired_pose)
 
@@ -143,18 +142,18 @@ class Strategy:
         sm.userdata.goal_frame = 'goal'
 
         sm.userdata.object_find_delay = 2.0
-        sm.userdata.robot_find_delay = 0.0
+        sm.userdata.no_delay = 0.0
         sm.userdata.half_turn = pi
         sm.userdata.zero_offset = 0
         sm.userdata.zero_angle = 0
 
-        sm.userdata.face_block_offset = -0.4
-        sm.userdata.approach_block_offset = -0.2
+        sm.userdata.face_block_offset = -0.33
+        sm.userdata.approach_block_offset = -0.18
         sm.userdata.engage_block_offset = -0.1
 
-        sm.userdata.face_goal_offset = -0.5
-        sm.userdata.approach_goal_offset = -0.35
-        sm.userdata.leave_block_offset = -0.20
+        sm.userdata.face_goal_offset = -0.55
+        sm.userdata.approach_goal_offset = -0.40
+        sm.userdata.leave_block_offset = -0.17
         sm.userdata.retreat_offset = -0.50
         sm.userdata.home_offset = -1.6
 
@@ -179,7 +178,17 @@ class Strategy:
                                    remapping={
                                        'frame': 'block_frame',
                                        'pose': 'block_pose',
-                                       'delay': 'robot_find_delay'
+                                       'delay': 'no_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_BLOCK'
+                                   })
+
+            smach.StateMachine.add('FACE_BLOCK', MoveToPose(),
+                                   remapping={
+                                       'object_pose': 'block_pose',
+                                       'offset': 'face_block_offset',
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'FIND_GOAL'
@@ -192,16 +201,6 @@ class Strategy:
                                        'delay': 'object_find_delay'
                                    },
                                    transitions={
-                                       Outcomes.SUCCESS: 'FACE_BLOCK'
-                                   })
-
-            smach.StateMachine.add('FACE_BLOCK', MoveToPose(),
-                                   remapping={
-                                       'object_pose': 'block_pose',
-                                       'offset': 'face_block_offset',
-                                       'angle': 'half_turn'
-                                   },
-                                   transitions={
                                        Outcomes.SUCCESS: 'REFIND_BLOCK'
                                    })
 
@@ -209,7 +208,7 @@ class Strategy:
                                    remapping={
                                        'frame': 'block_frame',
                                        'pose': 'block_pose',
-                                       'delay': 'object_find_delay'
+                                       'delay': 'no_delay'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'APPROACH_BLOCK'
@@ -219,7 +218,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'block_pose',
                                        'offset': 'approach_block_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'PICK_UP_BLOCK'
@@ -230,7 +229,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'block_pose',
                                        'offset': 'engage_block_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'FACE_GOAL'
@@ -240,7 +239,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'goal_pose',
                                        'offset': 'face_goal_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'REFIND_GOAL'
@@ -260,7 +259,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'goal_pose',
                                        'offset': 'leave_block_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'RETREAT_FROM_GOAL'
@@ -270,7 +269,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'goal_pose',
                                        'offset': 'retreat_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
@@ -290,7 +289,7 @@ class Strategy:
 #                                    remapping={
 #                                       'frame': 'robot_frame',
 #                                       'pose': 'robot_pose',
-#                                       'delay': 'robot_find_delay'
+#                                       'delay': 'no_delay'
 #                                    },
 #                                    transitions={
 #				        Outcomes.SUCCESS: 'TURN_AROUND'
@@ -331,7 +330,7 @@ class Strategy:
                                    remapping={
                                        'frame': 'goal_frame',
                                        'pose': 'goal_pose',
-                                       'delay': 'robot_find_delay'
+                                       'delay': 'no_delay'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'FACE_TABLE_END'
@@ -341,7 +340,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'goal_pose',
                                        'offset': 'face_goal_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'REFIND_TABLE_END'
@@ -361,7 +360,7 @@ class Strategy:
                                    remapping={
                                        'object_pose': 'goal_pose',
                                        'offset': 'leave_block_offset',
-                                       'angle': 'half_turn'
+                                       'angle': 'zero_angle'
                                    },
                                    transitions={
                                        Outcomes.SUCCESS: 'DO_RETURN'
