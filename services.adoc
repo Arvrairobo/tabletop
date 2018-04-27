@@ -8,7 +8,7 @@ and run the shutdown command.
 
 === /home/ubuntu/bin/tabletop
 
----
+....
 #! /bin/bash
 
 # ROS setup
@@ -24,11 +24,11 @@ mkdir -p $LOG_DIR
 LOG_FILE=$LOG_DIR/$NOW.log
 
 roslaunch tabletop tabletop.launch 2>&1 >$LOG_FILE
----
+....
 
 === /lib/systemd/system/tabletop.service
 
----
+----
 [unit]
 Description=Tabletop robot
 Wants=network-online.target
@@ -41,7 +41,7 @@ User=ubuntu
 
 [Install]
 WantedBy=multi-user.target
----
+----
 
 === Setup
 
