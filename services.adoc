@@ -1,0 +1,51 @@
+= System Services
+
+The tabletop robot sets up two system services using `systemctl`, the first to run the ROS configuration
+at startup, the second to monitor a switch to enable a graceful shutdown without having to log in
+and run the shutdown command.
+
+== Automatically Run ROS at Startup
+
+=== /home/ubuntu/bin/tabletop
+
+---
+#! /bin/bash
+
+# ROS setup
+source /opt/ros/kinetic/setup.bash
+source /home/ubuntu/catkin_ws/devel/setup.bash
+
+ROS_MASTER_URI=http://madrid.local:11311
+export ROS_HOSTNAME=madrid.local
+
+NOW=`date +%Y-%m-%dT%H%M%S`
+LOG_DIR=/home/ubuntu/log
+mkdir -p $LOG_DIR
+LOG_FILE=$LOG_DIR/$NOW.log
+
+roslaunch tabletop tabletop.launch 2>&1 >$LOG_FILE
+---
+
+=== /lib/systemd/system/tabletop.service
+
+---
+[unit]
+Description=Tabletop robot
+Wants=network-online.target
+After=network.target
+
+[Service]
+ExecStart=/home/ubuntu/bin/tabletop
+ExecStop=killall -HUP roslaunch
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target
+---
+
+=== Setup
+
+To start the service: `sudo systemctl start tabletop`
+To stop the service: `sudo systemctl stop tabletop`
+
+Once satisfied it is working, enable on boot via: `sudo systemctl enable tabletop`
