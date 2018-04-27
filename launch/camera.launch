@@ -1,6 +1,6 @@
 <launch>
 
-  <arg name="shutter_speed" default="50000" />
+  <arg name="shutter_speed" default="75000" />
 
   <node type="raspicam_node" pkg="raspicam_node" name="raspicam_node" output="screen">
 
