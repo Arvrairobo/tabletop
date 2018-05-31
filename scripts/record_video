@@ -1,0 +1,76 @@
+#! /usr/bin/env python
+
+from __future__ import print_function
+import sys
+import time
+import picamera
+import picamera.array
+import cv2
+import numpy as np
+
+class FrameAnalyzer(picamera.array.PiRGBAnalysis):
+
+    def __init__(self, camera, out, size):
+        super(FrameAnalyzer, self).__init__(camera, size)
+        self.last_frame_time = time.time()
+        self.out = out
+        self.frame_count = 0
+
+    def analyze(self, frame):
+        new_frame_time = time.time()
+        self.out.write(frame)
+        self.frame_count += 1
+        print('Frame: {0:d} time={1:f} delta={2:f}'.format(self.frame_count,
+            new_frame_time, new_frame_time - self.last_frame_time))
+        self.last_frame_time = new_frame_time
+
+class MotionAnalyzer(picamera.array.PiMotionAnalysis):
+
+    def __init__(self, camera, out):
+        super(MotionAnalyzer, self).__init__(camera)
+        self.last_frame_time = time.time()
+        self.out = out
+        self.frame_count = 0
+
+    def analyze(self, vectors):
+        new_frame_time = time.time()
+        vectors.tofile(self.out)
+        self.frame_count += 1
+        print('Vectors: {0:d} time={1:f} delta={2:f} shape={3} type={4}'
+            .format(self.frame_count, new_frame_time,
+                    new_frame_time - self.last_frame_time,
+                    vectors.shape, vectors.dtype))
+        self.last_frame_time = new_frame_time
+
+if len(sys.argv) != 4:
+    print('usage: record_video timeFile videoFile vectorFile')
+    sys.exit(1)
+
+with picamera.PiCamera() as camera:
+    start_time = time.time()
+    image_resolution = (640, 480)
+    vector_resolution = (1280, 960)
+    frame_rate = 10
+    camera.resolution = vector_resolution
+    camera.framerate = frame_rate
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(sys.argv[2], fourcc, frame_rate, image_resolution)
+    vector_out = open(sys.argv[3], 'wb')
+    with FrameAnalyzer(camera, out, image_resolution) as frame_analyzer:
+        with MotionAnalyzer(camera, vector_out) as motion_analyzer:
+            camera.start_recording('/dev/null', 'h264',
+                intra_period=0, motion_output=motion_analyzer)
+            camera.start_recording(frame_analyzer, 'bgr', splitter_port=2,
+                resize=image_resolution)
+            try:
+                while True:
+                    camera.wait_recording(1)
+                    if time.time() - start_time > 10.0:
+                        camera.stop_recording(splitter_port=2)
+                        camera.stop_recording()
+                        time.sleep(1.0)
+                        out.release()
+                        vector_out.close()
+                        break
+            finally:
+                pass
