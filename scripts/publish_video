@@ -8,26 +8,24 @@ import cv2
 import numpy as np
 import rospy
 from rospy.numpy_msg import numpy_msg
-from cv_bridge import CvBridge, CvBridgeError
-from sensor_msgs.msg import Image
-from tabletop.msg import MotionVector
+from sensor_msgs.msg import CompressedImage
 from tabletop.msg import MotionVectorArray
 
-class FrameAnalyzer(picamera.array.PiRGBAnalysis):
+class FrameAnalyzer(picamera.array.PiAnalysisOutput):
 
     def __init__(self, camera, pub, frame_id, size):
-        super(FrameAnalyzer, self).__init__(camera, size)
         self.pub = pub
         self.frame_id = frame_id
-        self.bridge = CvBridge()
 
-    def analyze(self, frame):
+    def write(self, frame):
         now = rospy.Time.now()
-        rospy.loginfo('Analyzing frame, size=%s', frame.shape)
+        rospy.loginfo('Analyzing frame, size=%s', len(frame))
 
-        msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
+        msg = CompressedImage()
         msg.header.stamp = now
         msg.header.frame_id = self.frame_id
+        msg.format = 'jpeg'
+        msg.data = bytes(frame)
         self.pub.publish(msg)
         rospy.loginfo('Finished analyzing frame')
 
@@ -40,7 +38,7 @@ class MotionAnalyzer(picamera.array.PiMotionAnalysis):
 
     def analyze(self, vectors):
         now = rospy.Time.now()
-        rospy.loginfo('Analyzing vectors')
+        rospy.loginfo('Analyzing vectors, size=%s', vectors.shape)
 
         h, w = vectors.shape
         vectors = vectors.reshape(h*w)
@@ -72,7 +70,8 @@ class VideoPublisher:
         vector_height = rospy.get_param('~vector_height', 480)
         frame_id = rospy.get_param('~frame_id', 'camera_link')
 
-        image_pub = rospy.Publisher('image', Image, queue_size=10)
+        image_pub = rospy.Publisher('image/compressed', CompressedImage,
+                                    queue_size=10)
         vector_pub = rospy.Publisher('motion_vectors',
                                      numpy_msg(MotionVectorArray),
                                      queue_size=10)
@@ -87,10 +86,11 @@ class VideoPublisher:
                  as frame_analyzer:
                 with MotionAnalyzer(camera, vector_pub, vector_size) \
                      as motion_analyzer:
+                    camera.start_recording(frame_analyzer, 'mjpeg',
+                        resize=image_size)
                     camera.start_recording('/dev/null', 'h264',
-                        intra_period=0, motion_output=motion_analyzer)
-                    camera.start_recording(frame_analyzer, 'bgr',
-                        splitter_port=2, resize=image_size)
+                        splitter_port=2, intra_period=0,
+                        motion_output=motion_analyzer)
                     try:
                         while not rospy.is_shutdown():
                             camera.wait_recording(1)
