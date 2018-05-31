@@ -60,6 +60,7 @@ class MotionAnalyzer(picamera.array.PiMotionAnalysis):
         msg.height = h
         msg.vectors = motion_vectors
         self.pub.publish(msg) 
+        rospy.loginfo('Finished analyzing vectors')
 
 class VideoPublisher:
 
@@ -96,7 +97,7 @@ class VideoPublisher:
                     camera.start_recording(frame_analyzer, 'bgr',
                         splitter_port=2, resize=image_size)
                     try:
-                        while True:
+                        while not rospy.is_shutdown():
                             camera.wait_recording(1)
                     except:
                         print('Unexpected error: {0}'.format(sys.exc_info()[0]))
