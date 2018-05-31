@@ -19,7 +19,7 @@ class FrameAnalyzer(picamera.array.PiAnalysisOutput):
 
     def write(self, frame):
         now = rospy.Time.now()
-        rospy.loginfo('Analyzing frame, size=%s', len(frame))
+        rospy.logdebug('Analyzing frame, size=%s', len(frame))
 
         msg = CompressedImage()
         msg.header.stamp = now
@@ -27,7 +27,7 @@ class FrameAnalyzer(picamera.array.PiAnalysisOutput):
         msg.format = 'jpeg'
         msg.data = bytes(frame)
         self.pub.publish(msg)
-        rospy.loginfo('Finished analyzing frame')
+        rospy.logdebug('Finished analyzing frame')
 
 class MotionAnalyzer(picamera.array.PiMotionAnalysis):
 
@@ -38,7 +38,7 @@ class MotionAnalyzer(picamera.array.PiMotionAnalysis):
 
     def analyze(self, vectors):
         now = rospy.Time.now()
-        rospy.loginfo('Analyzing vectors, size=%s', vectors.shape)
+        rospy.logdebug('Analyzing vectors, size=%s', vectors.shape)
 
         h, w = vectors.shape
         vectors = vectors.reshape(h*w)
@@ -53,7 +53,7 @@ class MotionAnalyzer(picamera.array.PiMotionAnalysis):
         msg.y = vectors['y']
         msg.sad = vectors['sad']
         self.pub.publish(msg) 
-        rospy.loginfo('Finished analyzing vectors')
+        rospy.logdebug('Finished analyzing vectors')
 
 class VideoPublisher:
 
