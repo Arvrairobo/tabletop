@@ -29,6 +29,7 @@ class FrameAnalyzer(picamera.array.PiRGBAnalysis):
         msg.header.stamp = now
         msg.header.frame_id = self.frame_id
         self.pub.publish(msg)
+        rospy.loginfo('Finished analyzing frame')
 
 class MotionAnalyzer(picamera.array.PiMotionAnalysis):
 
@@ -44,21 +45,15 @@ class MotionAnalyzer(picamera.array.PiMotionAnalysis):
         h, w = vectors.shape
         vectors = vectors.reshape(h*w)
 
-        motion_vectors = []
-        for vec in vectors:
-            mvec = MotionVector()
-            mvec.x = vec['x']
-            mvec.y = vec['y']
-            mvec.sad = vec['sad']
-            motion_vectors.append(mvec)
-
         msg = MotionVectorArray()
         msg.header.stamp = now
         msg.image_width = self.size[0]
         msg.image_height = self.size[1]
         msg.width = w
         msg.height = h
-        msg.vectors = motion_vectors
+        msg.x = vectors['x']
+        msg.y = vectors['y']
+        msg.sad = vectors['sad']
         self.pub.publish(msg) 
         rospy.loginfo('Finished analyzing vectors')
 

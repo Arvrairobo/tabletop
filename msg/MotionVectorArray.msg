@@ -11,5 +11,7 @@ uint16 image_height
 uint16 width
 uint16 height
 
-# The array of motion vectors
-MotionVector[] vectors
+# The arrays of motion vector components
+int8[] x
+int8[] y
+uint16[] sad
