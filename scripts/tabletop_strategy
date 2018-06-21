@@ -153,7 +153,7 @@ class Strategy:
 
         sm.userdata.face_goal_offset = -0.55
         sm.userdata.approach_goal_offset = -0.40
-        sm.userdata.leave_block_offset = -0.17
+        sm.userdata.leave_block_offset = -0.20
         sm.userdata.retreat_offset = -0.50
         sm.userdata.home_offset = -1.6
 
