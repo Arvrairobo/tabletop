@@ -24,6 +24,33 @@ class EdgeDistanceFinder:
 
     def run(self):
         rospy.init_node('calibrate_distance')
+        self.vert_fov = rospy.get_param('~vert_fov', 43.5)*pi/180
+        self.horz_fov = rospy.get_param('~horz_fov', 53.5)*pi/180
+        self.min_angle = rospy.get_param('~min_angle', -24)
+        self.max_angle = rospy.get_param('~max_angle', 24)
+        self.angle_delta = rospy.get_param('~angle_delta', 3)
+        self.ref_dist = rospy.get_param('~ref_dist', 0.4)
+        self.camera_height = rospy.get_param('~camera_height', 0.13)
+        self.width = rospy.get_param('~width', 640)
+        self.height = rospy.get_param('~height', 480)
+
+        self.angles = [angle*pi/180 \
+                       for angle in range(self.min_angle, self.max_angle+1,
+                                          self.angle_delta)]
+
+        self.horz_fd = self.width/2 / tan(self.horz_fov/2)
+        self.vert_fd = self.height/2 / tan(self.vert_fov/2)
+        self.vert_refang = atan2(self.ref_dist, self.camera_height)
+
+        self.positions = []
+        for angle in self.angles:
+            pos = Position()
+            pos.angle = angle
+            pos.x = self.width/2 - int(round(self.horz_fd*tan(angle)))
+            pos.max_y = None
+            pos.distance = 10.0
+            pos.slope = None
+            self.positions.append(pos)
 
         self.scan_pub = rospy.Publisher('scan', numpy_msg(LaserScan),
                                         queue_size=1)
@@ -63,30 +90,16 @@ class EdgeDistanceFinder:
 
             lines = cv2.HoughLinesP(edges, 1, 1*np.pi/180, 50, minLineLength=75, maxLineGap=10)
 
-            vert_fov = 43.5 # 41.1 according to the spec
-            horz_fov = 53.5*pi/180
-            angles = [angle*pi/180 for angle in range(-24, 24, 3)]
-            horz_fd = frame.shape[1]/2 / tan(horz_fov/2)
-            vert_fd = frame.shape[0]/2 / tan(vert_fov/2)
-            vert_refdist = 0.4
-            camera_height = 0.13
-            vert_refang = atan2(vert_refdist, camera_height)
-
-            positions = []
-            for angle in angles:
-                pos = Position()
-                pos.angle = angle
-                pos.x = frame.shape[1]/2 - int(round(horz_fd*tan(angle)))
+            for pos in self.positions:
                 pos.max_y = None
                 pos.distance = 10.0
                 pos.slope = None
-                positions.append(pos)
 
             margin = 3
             for line in lines:
                 x0, y0, x1, y1 = line[0]
-                if x0 >= frame.shape[1]-margin and x1 >= frame.shape[1]-margin \
-                   or y0 >= frame.shape[0]-margin and y1 >= frame.shape[0]-margin:
+                if x0 >= self.width-margin and x1 >= self.width-margin \
+                   or y0 >= self.height-margin and y1 >= self.height-margin:
                     continue
             
                 # Make sure line goes to the right.
@@ -94,7 +107,7 @@ class EdgeDistanceFinder:
                     x0,x1 = x1,x0
                     y0,y1 = y1,y0
 
-                for pos in positions:
+                for pos in self.positions:
                     if x0 < pos.x and x1 >= pos.x:
                         slope = float(y1 - y0) / (x1 - x0)
                         y = int(round(y0 + slope*(pos.x - x0)))
@@ -102,23 +115,24 @@ class EdgeDistanceFinder:
                             pos.max_y = y
                             pos.slope = -slope
                             pos.distance \
-                                = self.get_distance(frame.shape[1]/2 - pos.x,
-                                                    frame.shape[0]/2 - y,
-                                                    camera_height,
-                                                    horz_fd,
-                                                    vert_refang, vert_fd)
+                                = self.get_distance(self.width/2 - pos.x,
+                                                    self.height/2 - y,
+                                                    self.camera_height,
+                                                    self.horz_fd,
+                                                    self.vert_refang,
+                                                    self.vert_fd)
 
             scan = LaserScan()
             scan.header.stamp = rospy.Time.now()
             scan.header.frame_id = header.frame_id
-            scan.angle_min = angles[0]
-            scan.angle_max = angles[-1]
-            scan.angle_increment = angles[1] - angles[0]
+            scan.angle_min = self.min_angle*pi/180
+            scan.angle_max = self.max_angle*pi/180
+            scan.angle_increment = self.angle_delta*pi/180
             scan.time_increment = 0
             scan.scan_time = 0
             scan.range_min = 0
             scan.range_max = 2.0
-            scan.ranges = [pos.distance for pos in positions]
+            scan.ranges = [pos.distance for pos in self.positions]
             self.scan_pub.publish(scan)
 
         finally:
@@ -126,7 +140,7 @@ class EdgeDistanceFinder:
 
     def get_distance(self, dx, dy, camera_height, horz_fd, vert_refang, vert_fd):
         horz_angle = abs(atan2(dx, horz_fd))
-        vert_angle = vert_refang - atan2(dy, vert_fd)
+        vert_angle = vert_refang + atan2(dy, vert_fd)
         dist_ahead = camera_height * tan(vert_angle)
         return dist_ahead / cos(horz_angle)
 
