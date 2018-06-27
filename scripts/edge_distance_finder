@@ -3,7 +3,7 @@
 from __future__ import print_function
 import sys
 import threading
-from math import tan, atan2, pi
+from math import cos, tan, atan2, pi
 import cv2
 import numpy as np
 import rospy
@@ -65,7 +65,7 @@ class EdgeDistanceFinder:
 
             vert_fov = 43.5 # 41.1 according to the spec
             horz_fov = 53.5*pi/180
-            angles = [angle*pi/180 for angle in [-25, -20, -15, -10, -5, 0, 5, 10, 15, 20, 25]]
+            angles = [angle*pi/180 for angle in range(-24, 24, 3)]
             horz_fd = frame.shape[1]/2 / tan(horz_fov/2)
             vert_fd = frame.shape[0]/2 / tan(vert_fov/2)
             vert_refdist = 0.4
@@ -78,7 +78,7 @@ class EdgeDistanceFinder:
                 pos.angle = angle
                 pos.x = frame.shape[1]/2 - int(round(horz_fd*tan(angle)))
                 pos.max_y = None
-                pos.distance = None
+                pos.distance = 10.0
                 pos.slope = None
                 positions.append(pos)
 
@@ -101,7 +101,12 @@ class EdgeDistanceFinder:
                         if (pos.max_y is None) or y > pos.max_y:
                             pos.max_y = y
                             pos.slope = -slope
-                            pos.distance = self.get_distance(frame.shape[0]/2 - y, camera_height, vert_refang, vert_fd)
+                            pos.distance \
+                                = self.get_distance(frame.shape[1]/2 - pos.x,
+                                                    frame.shape[0]/2 - y,
+                                                    camera_height,
+                                                    horz_fd,
+                                                    vert_refang, vert_fd)
 
             scan = LaserScan()
             scan.header.stamp = rospy.Time.now()
@@ -119,9 +124,11 @@ class EdgeDistanceFinder:
         finally:
             self.thread_lock.release()
 
-    def get_distance(self, dy, camera_height, vert_refang, vert_fd):
-        angle = vert_refang - atan2(dy, vert_fd)
-        return camera_height * tan(angle)
+    def get_distance(self, dx, dy, camera_height, horz_fd, vert_refang, vert_fd):
+        horz_angle = abs(atan2(dx, horz_fd))
+        vert_angle = vert_refang - atan2(dy, vert_fd)
+        dist_ahead = camera_height * tan(vert_angle)
+        return dist_ahead / cos(horz_angle)
 
 if __name__ == "__main__":
     try:
