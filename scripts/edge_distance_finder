@@ -24,8 +24,8 @@ class EdgeDistanceFinder:
 
     def run(self):
         rospy.init_node('calibrate_distance')
-        self.vert_fov = rospy.get_param('~vert_fov', 43.5)*pi/180
-        self.horz_fov = rospy.get_param('~horz_fov', 53.5)*pi/180
+        self.vert_fov = rospy.get_param('~vert_fov', 43.65)*pi/180
+        self.horz_fov = rospy.get_param('~horz_fov', 55.36)*pi/180
         self.min_angle = rospy.get_param('~min_angle', -24)
         self.max_angle = rospy.get_param('~max_angle', 24)
         self.angle_delta = rospy.get_param('~angle_delta', 3)
