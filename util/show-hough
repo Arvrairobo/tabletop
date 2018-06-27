@@ -1,0 +1,267 @@
+#! /usr/bin/env python
+
+from __future__ import print_function
+import sys
+import time
+import cv2
+import numpy as np
+from math import sin, cos, tan, acos, atan2, pi
+
+def show_time(caption, start):
+    print('{0}: {1:.3f} sec'.format(caption, time.time() - start))
+
+def near(p1, p2, max_dist):
+    d_squared = (p1[0] - p2[0])**2 + (p1[1] - p2[1])**2
+    return d_squared <= max_dist*max_dist
+
+def midpoint(p1, p2):
+    return (int((p1[0] + p2[0] + 0.5)/2.0), int((p1[1] + p2[1] + 0.5)/2.0))
+
+def find_intersection(p0, p1, q0, q1):
+    pp0 = np.array([p0[0], p0[1], 1])
+    pp1 = np.array([p1[0], p1[1], 1])
+    lp = np.cross(pp0, pp1)
+
+    qq0 = np.array([q0[0], q0[1], 1])
+    qq1 = np.array([q1[0], q1[1], 1])
+    lq = np.cross(qq0, qq1)
+    
+    intersection = np.cross(lp, lq)
+    intersection = intersection.astype(np.float32) / intersection[2]
+    print('lp={0} lq={1} intersection={2}'.format(lp, lq, intersection))
+    return (int(intersection[0]), int(intersection[1]))
+
+def check_intersection(p0, p1, q0, q1):
+    return find_intersection(p0, p1, q0, q1)
+    #return midpoint(p0, q0)
+
+def intersection(l1, l2, min_angle, max_dist):
+    p0 = (l1[0], l1[1])
+    p1 = (l1[2], l1[3])
+
+    q0 = (l2[0], l2[1])
+    q1 = (l2[2], l2[3])
+
+    v1 = np.array([l1[2]-l1[0], l1[3]-l1[1]])
+    v2 = np.array([l2[2]-l2[0], l2[3]-l2[1]])
+    print('dot={0} norm1={1} norm2={2}'.format(
+        np.dot(v1,v2), np.linalg.norm(v1), np.linalg.norm(v2)))
+    cos_angle = float(np.dot(v1,v2)) / np.linalg.norm(v1) / np.linalg.norm(v2)
+    print('cos_angle={0}'.format(cos_angle))
+    if cos_angle >= 1.0:
+        angle = 0.0
+    else:
+        angle = acos(cos_angle)
+    if angle > pi/2:
+        angle -= pi
+
+    print('p0={0} p1={1} q0={2} q1={3} angle={4}'.format(
+        p0, p1, q0, q1, angle))
+
+    if abs(angle) < min_angle:
+        return None
+    if near(p0, q0, max_dist):
+        p = check_intersection(p0, p1, q0, q1)
+        if p is not None:
+            print('near: {0} {1}'.format(p0, q0))
+            return p
+    if near(p1, q0, max_dist):
+        p = check_intersection(p1, p0, q0, q1)
+        if p is not None:
+            print('near: {0} {1}'.format(p1, q0))
+            return p
+    if near(p0, q1, max_dist):
+        p = check_intersection(p0, p1, q1, q0)
+        if p is not None:
+            print('near: {0} {1}'.format(p0, q1))
+            return p
+    if near(p1, q1, max_dist):
+        p = check_intersection(p1, p0, q1, q0)
+        if p is not None:
+            print('near: {0} {1}'.format(p1, q1))
+            return p
+
+    return None
+
+if len(sys.argv) < 2:
+    print('usage: show-hough img [outputimg]')
+    sys.exit(1)
+
+def get_edges(im_gray):
+    med = np.median(im_gray)
+    lower = int(max(0, (1 - 0.5)*med))
+    upper = int(min(255, (1 + 0.5)*med))
+    print('lower={0} upper={1}'.format(lower, upper))
+
+    return cv2.Canny(im_gray, lower, upper)
+
+def add_images(im1, im2, im2_weight):
+    return np.maximum(im1, im2)
+
+def get_edges_channels(im):
+    edges = np.zeros(im.shape[:2], np.uint8)
+
+    for i in range(1, im.shape[2]):
+        new_edges = get_edges(im[:,:,i])
+        edges = np.maximum(edges, new_edges)
+
+    return edges
+
+start = time.time()
+im = cv2.imread(sys.argv[1])
+show_time('Read image', start)
+
+im = cv2.bilateralFilter(im, 5, 75, 75)
+
+im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY)
+#im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2HLS)[:,:,2]
+#im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2HSV)[:,:,2]
+#im_gray = cv2.cvtColor(im, cv2.COLOR_BGR2LAB)[:,:,0]
+show_time('Convert to gray', start)
+
+edges = get_edges(im_gray)
+#edges = get_edges_channels(cv2.cvtColor(im, cv2.COLOR_BGR2HLS))
+kernel = np.ones((3,3), np.uint8)
+edges = cv2.dilate(edges, kernel, iterations=1)
+#edges = cv2.morphologyEx(edges, cv2.MORPH_CLOSE, kernel)
+show_time('Canny edge detection', start)
+
+# lines = cv2.HoughLines(edges, 1, np.pi/180, 150)
+# print('{0} Hough lines'.format(len(lines)))
+# show_time('Hough', start)
+
+# hough = im.copy()
+# for line in lines:
+#     r, t = line[0]
+#     if t != 0.0:
+#         x0 = 0
+#         y0 = int(round(r / sin(t)))
+#         x1 = im.shape[1]
+#         y1 = int(round(y0 - cos(t)/sin(t)*x1))
+#     else:
+#         x0 = r
+#         y0 = 0
+#         x1 = r
+#         y1 = im.shape[0]
+
+#     cv2.line(hough, (x0,y0), (x1,y1), (0,0,255), 2, cv2.LINE_AA)
+# show_time('Hough lines', start)
+
+margin = 3
+lines = cv2.HoughLinesP(edges, 1, 1*np.pi/180, 50, minLineLength=75, maxLineGap=10)
+if lines is None:
+    print('No HoughP lines')
+    lines = []
+else:
+    print('{0} HoughP lines'.format(len(lines)))
+show_time('HoughP', start)
+
+vertical_angle_threshold = 30.0/180*pi
+
+avail_lines = []
+houghp = im.copy()
+for line in lines:
+    x0, y0, x1, y1 = line[0]
+    if x0 == x1:
+        angle = pi/2
+    else:
+        angle = atan2(y1-y0, x1-x0)
+    if angle < 0:
+        angle += pi
+    print('x0={0} x1={1} y0={2} y1={3} angle={4}'.format(
+        x0, x1, y0, y1, angle/pi*180))
+
+    horz_threshold = 1.0/180*pi
+
+    if x0 >= im.shape[1]-margin and x1 >= im.shape[1]-margin \
+       or y0 >= im.shape[0]-margin and y1 >= im.shape[0]-margin:
+        pass
+    elif abs(pi/2 - angle) <= vertical_angle_threshold:
+        cv2.line(houghp, (x0,y0), (x1,y1), (0,255,255), 2, cv2.LINE_AA)
+    elif abs(angle) <= horz_threshold or abs(pi-angle) <= horz_threshold:
+        cv2.line(houghp, (x0,y0), (x1,y1), (0,255,0), 2, cv2.LINE_AA)
+        avail_lines.append([x0, y0, x1, y1])
+    else:
+        cv2.line(houghp, (x0,y0), (x1,y1), (0,0,255), 2, cv2.LINE_AA)
+        avail_lines.append([x0, y0, x1, y1])
+show_time('HoughP lines', start)
+
+vert_fov = 43.5 # 41.1 according to the spec
+horz_fov = 53.5*pi/180
+angles = [angle*pi/180 for angle in [25, 20, 15, 10, 5, 0, -5, -10, -15, -20, -25]]
+horz_fd = im.shape[1]/2 / tan(horz_fov/2)
+vert_fd = im.shape[0]/2 / tan(vert_fov/2)
+vert_refdist = 0.4
+camera_height = 0.13
+vert_refang = atan2(vert_refdist, camera_height)
+
+print(angles)
+print('horz_fd={0} vert_fd={1}'.format(horz_fd, vert_fd))
+
+def get_distance(y):
+    dy = im.shape[0]/2 - y
+    angle = vert_refang - atan2(dy, vert_fd)
+    print('y={0} dy={1} angle={2}'.format(y, dy, angle))
+    return camera_height * tan(angle)
+
+class Position:
+    def __init__(self):
+        self.angle = None
+        self.x = None
+        self.min_y = None
+        self.slope = None
+
+positions = []
+for angle in angles:
+    pos = Position()
+    pos.angle = angle
+    pos.x = im.shape[1]/2 - int(round(horz_fd*tan(angle)))
+    pos.max_y = None
+    pos.distance = None
+    pos.slope = None
+    positions.append(pos)
+
+for pos in positions:
+    print('angle={0} x={1}'.format(pos.angle, pos.x))
+
+for line in avail_lines:
+    print('Checking line {0}'.format(line))
+    for pos in positions:
+        if line[0] < pos.x and line[2] >= pos.x:
+            print('Line crosses x={0}'.format(pos.x))
+            slope = float(line[3] - line[1]) / (line[2] - line[0])
+            y = int(round(line[1] + slope*(pos.x - line[0])))
+            if (pos.max_y is None) or y > pos.max_y:
+                pos.max_y = y
+                pos.slope = -slope
+                pos.distance = get_distance(y)
+                print('closer: x={0} line={1}'.format(pos.x, line))
+
+for pos in positions:
+    if pos.max_y is not None:
+        cv2.circle(houghp, (pos.x, pos.max_y), 10, (0,255,0), 2)
+        dist_str = '{0:.2f}'.format(pos.distance)
+        cv2.putText(houghp, dist_str, (pos.x-20, pos.max_y-20),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2, cv2.LINE_AA)
+        slope_str = '{0:+.2f}'.format(pos.slope)
+        cv2.putText(houghp, slope_str, (pos.x-20, pos.max_y-40),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2, cv2.LINE_AA)
+show_time('HoughP distances', start)
+
+# max_dist = 100
+# min_angle = 9.0/180.0*pi
+# for i in range(len(avail_lines)):
+#     for j in range(i+1, len(avail_lines)):
+#         p = intersection(avail_lines[i], avail_lines[j], min_angle, max_dist)
+#         if p is not None:
+#             cv2.circle(houghp, p, 10, (0,255,0), 2)
+# show_time('HoughP corners', start)
+
+if len(sys.argv) >= 3:
+    cv2.imwrite(sys.argv[2], houghp)
+else:
+    cv2.imshow('gray', im_gray)
+    cv2.imshow('edges', edges)
+    #cv2.imshow('hough', hough)
+    cv2.imshow('houghp', houghp)
+    cv2.waitKey(0)

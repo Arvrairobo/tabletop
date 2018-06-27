@@ -1,0 +1,86 @@
+from __future__ import print_function
+import sys
+import rosbag
+import cv2
+import numpy as np
+from math import sqrt
+
+if len(sys.argv) != 5:
+    print('usage: showbag bagfile outputdir imgprefix flowprefix')
+    sys.exit(1)
+
+def write_image(img, vectors, output_dir, img_prefix, flow_prefix, count):
+    img_h, img_w = img.shape[:2]
+    vector_spacing = (img_h / vectors.height, img_w / (vectors.width - 1))
+    vector_offset = (vector_spacing[0]/2, vector_spacing[1]/2)
+
+    fn = '{0}/{1}_{2:04d}.png'.format(output_dir, img_prefix, count)
+    cv2.imwrite(fn, img)
+
+    for r in range(vectors.height):
+        for c in range(vectors.width - 1):
+            i = r*vectors.width + c
+            x = c*vector_spacing[1] + vector_offset[1]
+            y = r*vector_spacing[0] + vector_offset[0]
+            dx = vectors.x[i]
+            dy = vectors.y[i]
+            sad = vectors.sad[i]
+
+            d = sqrt(dx*dx + dy*dy)
+            if dx==0 and dy==0 or d < 16:
+                pass
+            elif d > 40:
+                cv2.line(img, (x,y), (x+dx,y+dy), (0,0,255), 1)
+                cv2.circle(img, (x,y), 1, (0,0,255), -1)
+            elif sad > 300:
+                cv2.line(img, (x,y), (x+dx,y+dy), (255,255,0), 1)
+                cv2.circle(img, (x,y), 1, (255,255,0), -1)
+            else:
+                cv2.line(img, (x,y), (x+dx,y+dy), (0,255,0), 1)
+                cv2.circle(img, (x,y), 1, (0,255,0), -1)
+
+    fn = '{0}/{1}_{2:04d}.png'.format(output_dir, flow_prefix, count)
+    cv2.imwrite(fn, img)
+
+bag = rosbag.Bag(sys.argv[1])
+output_dir = sys.argv[2]
+img_prefix = sys.argv[3]
+flow_prefix = sys.argv[4]
+
+threshold = 0.06
+last_img_time = 0
+last_img = None
+last_vectors_time = 0
+last_vectors = None
+
+last_time = 0
+count = 0
+
+for topic, msg, t in bag.read_messages(topics=['/image/compressed','/motion_vectors', '/odom']):
+    msg_time = t.to_sec()
+    info = ''
+    if topic == '/image/compressed':
+        img_array = np.asarray(bytearray(msg.data), np.uint8)
+        img = cv2.imdecode(img_array, cv2.IMREAD_UNCHANGED)
+        info = '{0}'.format(img.shape)
+        last_img_time = msg_time
+        last_img = img
+    elif topic == '/motion_vectors':
+        info = '{0}'.format((msg.height, msg.width))
+        last_vectors_time = msg_time
+        last_vectors = msg
+    print('{0}: t={1}.{2} delta={3} {4}'.format(topic, t.secs, t.nsecs,
+                                            msg_time - last_time, info))
+    if msg_time < last_time:
+        print('*** out of order ***')
+    last_time = msg_time
+
+    if (last_img is not None) and (last_vectors is not None) \
+       and abs(last_img_time - last_vectors_time) < threshold:
+
+       write_image(last_img, last_vectors, output_dir, img_prefix, flow_prefix, count)
+       count += 1
+       last_img = None
+       last_vectors = None
+
+bag.close()
