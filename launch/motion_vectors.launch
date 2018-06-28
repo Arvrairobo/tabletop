@@ -14,7 +14,7 @@
     <param name="~image_height" value="480" />
     <param name="~vector_width" value="1280" />
     <param name="~vector_height" value="960" />
-    <param name="~frame_rate" value="20" />
+    <param name="~frame_rate" value="10" />
     <param name="~frame_id" value="camera_link" />
   </node>
 
