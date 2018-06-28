@@ -24,6 +24,11 @@
     </rosparam>
   </node>
 
+  <node name="edge_finder" pkg="tabletop" type="edge_distance_finder"
+        output="screen">
+    <remap from="image/compressed" to="raspicam_node/image/compressed" />
+  </node>
+
   <node name="strategy" pkg="tabletop" type="tabletop_strategy"
         output="screen">
     <rosparam>

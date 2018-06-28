@@ -2,12 +2,13 @@
 
 """Implements the tabletop strategy."""
 
-from math import pi
+from math import pi, sin, cos
 import rospy
 import tf
 import tf2_ros
 from std_msgs.msg import Bool
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Twist
+from sensor_msgs.msg import LaserScan
 from tf.transformations import quaternion_from_euler, euler_from_quaternion
 from ros_arduino_msgs.msg import Digital
 from diff_drive.pose import Pose
@@ -29,6 +30,7 @@ class Outcomes:
     FAILURE = 'failure'
     OPTION1 = 'option1'
     OPTION2 = 'option2'
+    REPEAT = 'repeat'
 
 
 class WaitForButton(smach.State):
@@ -45,7 +47,10 @@ class WaitForButton(smach.State):
            and userdata.node.button_b==0:
             rate.sleep()
 
-        if userdata.node.button_a != 0:
+        # Wait a bit for user to release button.
+        a_value = userdata.node.button_a
+        rospy.sleep(0.5)
+        if a_value != 0:
             return Outcomes.OPTION1
         else:
             return Outcomes.OPTION2
@@ -55,7 +60,7 @@ class FindObject(smach.State):
 
     def __init__(self):
         smach.State.__init__(
-            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE, Outcomes.OPTION1, Outcomes.OPTION2, Outcomes.REPEAT],
             input_keys=['node', 'frame', 'delay'],
             output_keys=['node', 'frame', 'pose', 'delay'])
 
@@ -102,6 +107,93 @@ class MoveToPose(smach.State):
             return Outcomes.FAILURE
 
 
+class MoveToRelativePose(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            input_keys=['object_pose', 'node', 'offset', 'offset_angle'],
+            output_keys=['object_pose', 'node', 'offset', 'offset_angle'])
+
+    def execute(self, userdata):
+        object_pose = userdata.object_pose
+        desired_pose = Pose()
+        desired_pose.x = object_pose.x + userdata.offset*cos(object_pose.theta)
+        desired_pose.y = object_pose.y + userdata.offset*sin(object_pose.theta)
+        desired_pose.theta = userdata.node.normalize_angle(
+            object_pose.theta + userdata.offset_angle)
+
+        q_pose = userdata.node.get_quaternion_pose(desired_pose)
+
+        action_goal = GoToPoseGoal()
+        action_goal.pose.pose.position.x = q_pose.pose.position.x
+        action_goal.pose.pose.position.y = q_pose.pose.position.y
+        action_goal.pose.pose.position.z = q_pose.pose.position.z
+        action_goal.pose.pose.orientation.x = q_pose.pose.orientation.x
+        action_goal.pose.pose.orientation.y = q_pose.pose.orientation.y
+        action_goal.pose.pose.orientation.z = q_pose.pose.orientation.z
+        action_goal.pose.pose.orientation.w = q_pose.pose.orientation.w
+        success = userdata.node.send_goal(action_goal)
+        if success:
+            return Outcomes.SUCCESS
+        else:
+            return Outcomes.FAILURE
+
+
+class DriveToEdge(smach.State):
+
+    def __init__(self):
+        smach.State.__init__(
+            self, outcomes=[Outcomes.SUCCESS, Outcomes.FAILURE],
+            input_keys=['node'],
+            output_keys=['node'])
+
+    def execute(self, userdata):
+        rate = rospy.Rate(10.0)
+        while not rospy.is_shutdown():
+            if userdata.node.ranges is not None:
+                mid = (len(userdata.node.ranges) + 1) / 2
+                dist = userdata.node.ranges[mid]
+                if dist < 0.2:
+                    userdata.node.set_speed(0, 0)
+                    rospy.sleep(1.0)
+                    dist = userdata.node.ranges[mid]
+                    if dist < 0.2:
+                        break;
+
+                if dist > 0.5:
+                    diff = 0
+                    theta_vel = 0
+                else:
+                    right = self.median(userdata.node.ranges, mid-2)
+                    left = self.median(userdata.node.ranges, mid+2)
+                    diff = right - left
+                    theta_vel = max(min(diff * userdata.node.k_angle,
+                                        userdata.node.max_theta_vel),
+                                    -userdata.node.max_theta_vel)
+
+                rospy.loginfo('dist=%f diff=%f theta_vel=%f',
+                              dist, diff, theta_vel)
+                userdata.node.set_speed(0.07, theta_vel)
+
+            rate.sleep()
+
+        return Outcomes.SUCCESS
+
+    def median(self, vector, i):
+        left, mid, right = (vector[i-1], vector[i], vector[i+1])
+        if left<=mid and mid<=right:
+            return mid
+        elif right<=mid and mid<=right:
+            return mid
+        elif mid<=left and left<=right:
+            return left
+        elif right<=left and left<=mid:
+            return left
+        else:
+            return right
+
+
 class Strategy:
 
     def run(self):
@@ -120,21 +212,30 @@ class Strategy:
         self.block_frame = rospy.get_param('~block_frame', 'block')
         self.goal_frame = rospy.get_param('~block_frame', 'goal')
         self.reference_frame = rospy.get_param('~reference_frame', 'odom')
+        self.k_speed = rospy.get_param('~k_speed', 2.0)
+        self.k_angle = rospy.get_param('~k_angle', 10.0)
+        self.max_x_vel = rospy.get_param('~max_linear_vel', 0.1)
+        self.max_theta_vel = rospy.get_param('~max_theta_vel', 0.3)
+        self.ranges = None
 
         self.goal_pub = rospy.Publisher('move_base_simple/goal', PoseStamped,
                                         queue_size=1)
+
+        self.vel_pub = rospy.Publisher('robot/cmd_vel', Twist, queue_size=1)
 
         rospy.Subscriber('goal_achieved', Bool, self.on_goal_achieved)
         rospy.Subscriber('arduino/sensor/button_a', Digital,
                          self.on_button_a)
         rospy.Subscriber('arduino/sensor/button_b', Digital,
                          self.on_button_b)
-
+        rospy.Subscriber('scan', LaserScan, self.on_laser_scan)
 
         sm = StateMachine([Outcomes.SUCCESS, Outcomes.FAILURE,
-                           Outcomes.OPTION1, Outcomes.OPTION2])
+                           Outcomes.OPTION1, Outcomes.OPTION2,
+                           Outcomes.REPEAT])
         sm.userdata.node = self
         sm.userdata.home_pose = PoseStamped()
+        sm.userdata.robot_pose = PoseStamped()
         sm.userdata.block_pose = PoseStamped()
         sm.userdata.goal_pose = PoseStamped()
         sm.userdata.robot_frame = 'base_link'
@@ -146,6 +247,8 @@ class Strategy:
         sm.userdata.half_turn = pi
         sm.userdata.zero_offset = 0
         sm.userdata.zero_angle = 0
+        sm.userdata.qtr_turn = pi/2
+        sm.userdata.neg_qtr_turn = -pi/2
 
         sm.userdata.face_block_offset = -0.33
         sm.userdata.approach_block_offset = -0.18
@@ -156,9 +259,16 @@ class Strategy:
         sm.userdata.leave_block_offset = -0.20
         sm.userdata.retreat_offset = -0.50
         sm.userdata.home_offset = -1.6
+        sm.userdata.face_end_offset = 0.18
 
         with sm:
             smach.StateMachine.add('WAIT_FOR_BUTTON', WaitForButton(),
+                                   transitions={
+                                       Outcomes.OPTION1: 'RG_START',
+                                       Outcomes.OPTION2: 'NEW_START'
+                                   })
+
+            smach.StateMachine.add('RG_START', WaitForButton(),
                                    transitions={
                                        Outcomes.OPTION1: 'FIND_HOME',
                                        Outcomes.OPTION2: 'FIND_RETURN_POS'
@@ -281,47 +391,6 @@ class Strategy:
                                        Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
                                    })
 
-#            smach.StateMachine.add('FIND_BLOCK_IN_GOAL', FindObject(),
-#                                   remapping={
-#                                       'frame': 'block_frame',
-#                                       'pose': 'block_pose',
-#                                       'delay': 'object_find_delay'
-#                                   },
-#                                   transitions={
-#                                       Outcomes.SUCCESS: 'FIND_ROBOT_3'
-#                                   })
-#
-#            smach.StateMachine.add('FIND_ROBOT_3', FindObject(),
-#                                    remapping={
-#                                       'frame': 'robot_frame',
-#                                       'pose': 'robot_pose',
-#                                       'delay': 'no_delay'
-#                                    },
-#                                    transitions={
-#				        Outcomes.SUCCESS: 'TURN_AROUND'
-#				    })
-#
-#            smach.StateMachine.add('TURN_AROUND', MoveToPose(),
-#                                   remapping={
-#                                       'object_pose': 'robot_pose',
-#                                       'offset': 'zero_offset',
-#                                       'angle': 'half_turn'
-#                                   },
-#                                   transitions={
-#                                       Outcomes.SUCCESS: 'RETURN_TO_HOME'
-#                                   })
-#
-#            smach.StateMachine.add('RETURN_TO_HOME', MoveToPose(),
-#                                   remapping={
-#                                       'object_pose': 'block_pose',
-#                                       'offset': 'home_offset',
-#                                       'angle': 'zero_angle'
-#                                   },
-#                                   transitions={
-#                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON_A'
-#                                   })
-
-
             smach.StateMachine.add('FIND_RETURN_POS', FindObject(),
                                    remapping={
                                        'frame': 'robot_frame',
@@ -385,6 +454,115 @@ class Strategy:
                                        Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
                                    })
 
+            #
+            # New states for HBRC demo.
+            #
+            
+            smach.StateMachine.add('NEW_START', WaitForButton(),
+                                   transitions={
+                                       Outcomes.OPTION1: 'DRIVE_TO_SIDE_EDGE',
+                                       Outcomes.OPTION2: 'WAIT_FOR_BUTTON'
+                                   })
+
+            smach.StateMachine.add('DRIVE_TO_SIDE_EDGE', DriveToEdge(),
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_SIDE_EDGE_POSE'
+                                   })
+
+            smach.StateMachine.add('FIND_SIDE_EDGE_POSE', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'no_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'TURN_TO_RIGHT',
+                                       Outcomes.FAILURE: 'WAIT_FOR_BUTTON'
+                                   })
+
+            smach.StateMachine.add('TURN_TO_RIGHT', MoveToRelativePose(),
+                                   remapping={
+                                       'object_pose': 'robot_pose',
+                                       'offset': 'zero_offset',
+                                       'offset_angle': 'neg_qtr_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'DRIVE_TO_NEAR_END'
+                                   })
+
+            smach.StateMachine.add('DRIVE_TO_NEAR_END', DriveToEdge(),
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_NEAR_END_POSE'
+                                   })
+
+            smach.StateMachine.add('FIND_NEAR_END_POSE', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'no_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_NEAR_END',
+                                       Outcomes.FAILURE: 'WAIT_FOR_BUTTON'
+                                   })
+
+            smach.StateMachine.add('FACE_NEAR_END', MoveToRelativePose(),
+                                   remapping={
+                                       'object_pose': 'robot_pose',
+                                       'offset': 'face_end_offset',
+                                       'offset_angle': 'zero_angle'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_END_POSE'
+                                   })
+
+            smach.StateMachine.add('FIND_END_POSE', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'no_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'TURN_AROUND',
+                                       Outcomes.FAILURE: 'WAIT_FOR_BUTTON'
+                                   })
+
+            smach.StateMachine.add('TURN_AROUND', MoveToRelativePose(),
+                                   remapping={
+                                       'object_pose': 'robot_pose',
+                                       'offset': 'zero_offset',
+                                       'offset_angle': 'half_turn'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'DRIVE_TO_FAR_END'
+                                   })
+
+            smach.StateMachine.add('DRIVE_TO_FAR_END', DriveToEdge(),
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FIND_FAR_END_POSE'
+                                   })
+
+            smach.StateMachine.add('FIND_FAR_END_POSE', FindObject(),
+                                   remapping={
+                                       'frame': 'robot_frame',
+                                       'pose': 'robot_pose',
+                                       'delay': 'no_delay'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'FACE_FAR_END',
+                                       Outcomes.FAILURE: 'WAIT_FOR_BUTTON'
+                                   })
+
+            smach.StateMachine.add('FACE_FAR_END', MoveToRelativePose(),
+                                   remapping={
+                                       'object_pose': 'robot_pose',
+                                       'offset': 'face_end_offset',
+                                       'offset_angle': 'zero_angle'
+                                   },
+                                   transitions={
+                                       Outcomes.SUCCESS: 'WAIT_FOR_BUTTON'
+                                   })
+
         result = sm.execute()
         rospy.loginfo('Mission result: %s', result)
 
@@ -401,6 +579,9 @@ class Strategy:
 
     def on_button_b(self, msg):
         self.button_b = msg.value
+
+    def on_laser_scan(self, msg):
+        self.ranges = msg.ranges
 
     def on_goal_achieved(self, msg):
         pass
@@ -443,6 +624,13 @@ class Strategy:
 
     def send_goal_pose(self, pose):
         self.goal_pub.publish(self.get_quaternion_pose(pose))
+
+    def set_speed(self, x_vel, theta_vel):
+        rospy.loginfo('setting speed: %f %f', x_vel, theta_vel)
+        twist = Twist()
+        twist.linear.x = x_vel
+        twist.angular.z = theta_vel
+        self.vel_pub.publish(twist)
 
     def normalize_angle(self, angle):
         while angle >= 2*pi:

@@ -24,11 +24,12 @@ class EdgeDistanceFinder:
 
     def run(self):
         rospy.init_node('calibrate_distance')
+        self.frame_id = rospy.get_param('~frame_id', 'camera_link')
         self.vert_fov = rospy.get_param('~vert_fov', 43.65)*pi/180
         self.horz_fov = rospy.get_param('~horz_fov', 55.36)*pi/180
         self.min_angle = rospy.get_param('~min_angle', -24)
         self.max_angle = rospy.get_param('~max_angle', 24)
-        self.angle_delta = rospy.get_param('~angle_delta', 3)
+        self.angle_delta = rospy.get_param('~angle_delta', 4)
         self.ref_dist = rospy.get_param('~ref_dist', 0.4)
         self.camera_height = rospy.get_param('~camera_height', 0.13)
         self.width = rospy.get_param('~width', 640)
@@ -78,8 +79,6 @@ class EdgeDistanceFinder:
             return
 
         try:
-            rospy.loginfo('Got frame with data size {0}'.format(frame.shape))
-
             im_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             med = np.median(im_gray)
             lower = int(max(0, (1 - 0.5)*med))
@@ -89,6 +88,9 @@ class EdgeDistanceFinder:
             edges = cv2.dilate(edges, kernel, iterations=1)
 
             lines = cv2.HoughLinesP(edges, 1, 1*np.pi/180, 50, minLineLength=75, maxLineGap=10)
+
+            if lines is None:
+                return
 
             for pos in self.positions:
                 pos.max_y = None
@@ -124,7 +126,7 @@ class EdgeDistanceFinder:
 
             scan = LaserScan()
             scan.header.stamp = rospy.Time.now()
-            scan.header.frame_id = header.frame_id
+            scan.header.frame_id = self.frame_id
             scan.angle_min = self.min_angle*pi/180
             scan.angle_max = self.max_angle*pi/180
             scan.angle_increment = self.angle_delta*pi/180
